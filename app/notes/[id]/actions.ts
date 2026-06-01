@@ -18,6 +18,7 @@ export async function shareNoteWithEmail(noteId: string, email: string, permissi
   const targetUser = usersData?.users.find(u => u.email === email);
   let targetUserId = targetUser?.id;
 
+  
   if (!targetUserId) {
     return { error: `User with email ${email} not found.` }
   }
