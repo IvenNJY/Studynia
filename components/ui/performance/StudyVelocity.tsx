@@ -1,0 +1,28 @@
+import { Card, CardContent } from "@/components/ui/card"
+
+export function StudyVelocity() {
+  return (
+    <Card className="bg-primary text-primary-foreground border-0 shadow-sm relative overflow-hidden h-full">
+      {/* Decorative semi-circle background */}
+      <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-primary-foreground/10 rounded-full blur-2xl" />
+      <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-primary-foreground/5 rounded-full" />
+      
+      <CardContent className="p-6 md:p-8 flex flex-col h-full z-10 relative">
+        <div className="space-y-1 mb-8">
+          <h2 className="text-lg font-medium tracking-tight text-primary-foreground/90">Study Velocity</h2>
+          <p className="text-sm text-primary-foreground/70">Focus hours per week</p>
+        </div>
+        
+        <div className="mt-auto">
+          <div className="flex items-baseline gap-1 font-bold mb-4">
+            <span className="text-5xl tracking-tighter">42.5</span>
+            <span className="text-xl text-primary-foreground/70 font-medium">hrs</span>
+          </div>
+          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-foreground/10 border border-primary-foreground/20 text-xs font-medium text-primary-foreground backdrop-blur-sm">
+            +4.2h vs Last Week
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
