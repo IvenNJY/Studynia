@@ -49,14 +49,52 @@ export async function POST() {
     // 4. Call Canvas API
     const baseUrl = connection.domain.replace(/\/$/, "");
     const canvasResponse = await fetch(`${baseUrl}/api/v1/courses?enrollment_state=active,inactive&per_page=100&include[]=term`, {
-      headers: { Authorization: `Bearer ${connection.access_token}` },
+      headers: {
+        Authorization: `Bearer ${connection.access_token}`,
+        Accept: "application/json",
+      },
     });
 
+    const canvasBody = await canvasResponse.text();
+
     if (!canvasResponse.ok) {
-      return NextResponse.json({ error: "Canvas API rejected the token" }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: "Canvas API rejected the token",
+          status: canvasResponse.status,
+          details: canvasBody.slice(0, 300),
+        },
+        { status: canvasResponse.status }
+      );
     }
 
-    const data = await canvasResponse.json();
+    if (!canvasResponse.headers.get("content-type")?.includes("application/json")) {
+      return NextResponse.json(
+        {
+          error: "Canvas API returned a non-JSON response",
+          status: canvasResponse.status,
+          details: canvasBody.slice(0, 300),
+        },
+        { status: 502 }
+      );
+    }
+
+    let data: unknown;
+
+    try {
+      data = JSON.parse(canvasBody);
+    } catch (parseError: unknown) {
+      const message = parseError instanceof Error ? parseError.message : "Invalid JSON";
+
+      return NextResponse.json(
+        {
+          error: "Canvas API returned invalid JSON",
+          status: canvasResponse.status,
+          details: message,
+        },
+        { status: 502 }
+      );
+    }
 
     // Map Canvas data to your local DB schema
     const mappedCourses = (Array.isArray(data) ? data : [])
