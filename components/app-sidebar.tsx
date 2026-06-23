@@ -17,10 +17,9 @@ export const navData: NavItem[] = [
   { title: "Resource Management", icon: ClipboardList, href: "/resources" },
 
   // Pages Section
-  { label: "Pages", isSection: true },
-  { title: "Tables", icon: Table, href: "#" },
-  { title: "Forms", icon: ClipboardList, href: "#" },
-  { title: "User Profile", icon: CircleUserRound, href: "#" },
+  { label: "Practice", isSection: true },
+  { title: "Assesment Centre", icon: ClipboardList, href: "/practice" },
+  { title: "Assignments", icon: Table, href: "#" },
 
   // Apps Section
   { label: "Studio", isSection: true },

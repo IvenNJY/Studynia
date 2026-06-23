@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import {
   ArrowDown,
   ArrowUp,
@@ -36,16 +37,6 @@ import {
 } from "@/components/ui/sidebar"
 
 const data = [
-  [
-    {
-      label: "Customize Page",
-      icon: Settings2,
-    },
-    {
-      label: "Turn into wiki",
-      icon: FileText,
-    },
-  ],
   [
     {
       label: "Copy Link",
@@ -101,9 +92,13 @@ const data = [
 export function NavActions() {
   const [isOpen, setIsOpen] = React.useState(false)
 
-  React.useEffect(() => {
-    setIsOpen(true)
-  }, [])
+  const handleAction = (label: string) => {
+    if (label === "Copy Link") {
+      navigator.clipboard.writeText(window.location.href)
+      setIsOpen(false)
+      toast("Link copied to clipboard")
+    }
+  }
 
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -137,7 +132,7 @@ export function NavActions() {
                     <SidebarMenu>
                       {group.map((item, index) => (
                         <SidebarMenuItem key={index}>
-                          <SidebarMenuButton>
+                          <SidebarMenuButton onClick={() => handleAction(item.label)}>
                             <item.icon /> <span>{item.label}</span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
