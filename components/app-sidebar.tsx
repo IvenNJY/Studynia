@@ -19,13 +19,12 @@ export const navData: NavItem[] = [
   // Pages Section
   { label: "Practice", isSection: true },
   { title: "Assesment Centre", icon: ClipboardList, href: "/practice" },
-  { title: "Assignments", icon: Table, href: "#" },
 
   // Apps Section
   { label: "Studio", isSection: true },
   { title: "Folder", icon: Folders,children: [
-    { title: "Folder View", href: "#" },
-    { title: "Folder View", href: "#" },
+    { title: "OPERATING SYSTEMS...", href: "http://localhost:3000/folders/101ae106-3caa-47b2-916d-b5992a25a103" },
+    { title: "INDIVIDUAL PROJECT PREPARATION", href: "http://localhost:3000/folders/960a30a2-b99b-4e89-a9b9-17574dc9aece" },
   ]},
   {
     title: "Notes",
@@ -37,9 +36,9 @@ export const navData: NavItem[] = [
     children: [], // will be populated dynamically
   },
 
-  { label: "Help", isSection: true },
+  { label: "Info", isSection: true },
   { title: "Account", icon: User, href: "/settings" },
-  { title: "Trash", icon: Trash, href: "#" },
+  { title: "Trash", icon: Trash, href: "trash" },
   { title: "FAQ", icon: CircleQuestionMarkIcon, href: "#" }
 ];
 
@@ -93,8 +92,9 @@ export function AppSidebar() {
         <SidebarHeader className="px-4">
           <SidebarMenu>
             <SidebarMenuItem>
-              <a href="#" className="w-full h-full">
-                Logo
+              <a href="/home" className="w-full h-full flex items-center gap-2">
+                <img src="/logo 1.png" alt="Logo" className="w-10 h-10" /> 
+                <span>StudyNia</span>
               </a>
             </SidebarMenuItem>
           </SidebarMenu>

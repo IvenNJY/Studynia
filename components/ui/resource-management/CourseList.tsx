@@ -5,6 +5,7 @@ import { createClient } from "@/lib/client"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { BookOpen, GraduationCap, Folder, FolderPlus } from "lucide-react"
 import {
   Carousel,
@@ -64,6 +65,8 @@ export function CourseList() {
   }, [])
 
   const handleSync = async () => {
+    setLoading(true)
+
     try {
       const response = await fetch("/api/lms/sync", { method: "POST" })
 
@@ -80,6 +83,8 @@ export function CourseList() {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("Sync Catch:", err)
       alert("Sync failed: " + message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -111,7 +116,7 @@ export function CourseList() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
+            <Skeleton key={i} className="h-32 rounded-xl" />
           ))}
         </div>
       ) : courses.length === 0 ? (
@@ -120,7 +125,7 @@ export function CourseList() {
             <GraduationCap className="w-12 h-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium">No courses found</p>
             <p className="text-sm text-muted-foreground mb-4">Connect your LMS to start importing modules.</p>
-            <Button onClick={handleSync}>Import Now</Button>
+            <Button onClick={handleSync} disabled={loading}>Import Now</Button>
           </CardContent>
         </Card>
       ) : filteredCourses.length === 0 ? (

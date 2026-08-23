@@ -1,12 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const courses = [
-  { name: "Advanced Macroeconomics", progress: 94 },
-  { name: "Data Structures & Algo", progress: 88 },
-  { name: "Cognitive Psychology", progress: 91 },
+  { name: "Operating Systems", progress: 10 },
+  { name: "Data Structures & Algorithms", progress: 20 },
+  { name: "Psychology", progress: 90 },
 ]
 
-export function CourseGradeProgress() {
+export function CourseGradeProgress({ courses }: { 
+  courses: Array<{ name: string, progress: number }> 
+}) {
   return (
     <Card className="shadow-none border-border/50 border bg-muted/30 sm:p-2 h-full flex flex-col">
       <CardHeader className="pb-6">
@@ -21,7 +23,7 @@ export function CourseGradeProgress() {
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
               <div
-                className="h-full bg-primary transition-all rounded-full"
+                className="h-full bg-primary transition-all duration-500 ease-in-out rounded-full"
                 style={{ width: `${course.progress}%` }}
               />
             </div>

@@ -9,17 +9,24 @@ export function StudyVelocity() {
       
       <CardContent className="p-6 md:p-8 flex flex-col h-full z-10 relative">
         <div className="space-y-1 mb-8">
-          <h2 className="text-lg font-medium tracking-tight text-primary-foreground/90">Study Velocity</h2>
-          <p className="text-sm text-primary-foreground/70">Focus hours per week</p>
+          <h2 className="text-lg font-medium tracking-tight text-primary-foreground/90">Assignment Progress</h2>
+          <p className="text-sm text-primary-foreground/70">1 Left to go ! Keep it up!</p>
         </div>
         
         <div className="mt-auto">
           <div className="flex items-baseline gap-1 font-bold mb-4">
-            <span className="text-5xl tracking-tighter">42.5</span>
-            <span className="text-xl text-primary-foreground/70 font-medium">hrs</span>
+            <span className="text-5xl tracking-tighter">5</span>
+            <span className="text-xl text-primary-foreground/70 font-medium">/6</span>
           </div>
-          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-foreground/10 border border-primary-foreground/20 text-xs font-medium text-primary-foreground backdrop-blur-sm">
-            +4.2h vs Last Week
+          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-500/50 border border-primary-foreground/20 text-xs font-medium text-primary-foreground backdrop-blur-sm">
+            Individual Project Pitching
+
+            <div className="relative flex size-3 justify-center items-center ml-2">
+              {/* Pinging Outer Ring */}
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
+              {/* Inner Static Circle */}
+              <span className="relative inline-flex size-3 rounded-full bg-yellow-500"></span>
+            </div>
           </div>
         </div>
       </CardContent>
