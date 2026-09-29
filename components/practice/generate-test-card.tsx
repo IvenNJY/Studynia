@@ -312,7 +312,8 @@ toast.success("Assessment generated and saved successfully!")
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Select Semester
             </p>
-            <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+            <Select value={selectedSemester} 
+                    onValueChange={(value) => setSelectedSemester(value ?? "")}>
               <SelectTrigger className="h-10 w-full rounded-md border-border bg-muted/35 text-sm">
                 <SelectValue placeholder="All Semesters" />
               </SelectTrigger>
@@ -332,7 +333,13 @@ toast.success("Assessment generated and saved successfully!")
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Select Course
             </p>
-            <Select value={selectedCourse?.id || ""} onValueChange={handleCourseSelect} disabled={loadingCourses}>
+            <Select 
+                value={selectedCourse?.id || ""} 
+                onValueChange={(value) => {
+                  if (value) handleCourseSelect(value);
+                }} 
+                disabled={loadingCourses || filteredCourses.length === 0}
+              >
               <SelectTrigger className="h-10 w-full rounded-md border-border bg-muted/35 text-sm">
                 <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Choose a course"} />
               </SelectTrigger>

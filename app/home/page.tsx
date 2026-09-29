@@ -13,7 +13,7 @@ export default async function ProtectedPage() {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pt-4">
-      <h1 className="text-2xl font-bold text-foreground">Welcome Back! {data.claims.user_metadata.preferred_username || data.claims.email} 
+      <h1 className="text-2xl font-bold text-foreground">Welcome Back! {data.claims.email || 'User'} 
         👋
       </h1>
       {/* Interactive Client-Driven Dashboard Grid */}

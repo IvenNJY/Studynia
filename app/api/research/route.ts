@@ -110,8 +110,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Research id is required" }, { status: 400 })
   }
 
-  if (validation.error) {
-    return NextResponse.json({ error: validation.error }, { status: 400 })
+  if (validation.error || !validation.fields) {
+    return NextResponse.json({ error: validation.error || "Title and link are required" }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin
