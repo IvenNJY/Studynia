@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import {
   ArrowDown,
   ArrowUp,
@@ -35,6 +36,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 const data = [
   [
@@ -69,34 +78,47 @@ const data = [
       icon: GalleryVerticalEnd,
     },
     {
-      label: "Show delete pages",
-      icon: Trash,
-    },
-    {
       label: "Notifications",
       icon: Bell,
     },
   ],
-  [
-    {
-      label: "Import",
-      icon: ArrowUp,
-    },
-    {
-      label: "Export",
-      icon: ArrowDown,
-    },
-  ],
 ]
 
-export function NavActions() {
+export function NavActions({ noteId }: { noteId: string }) {
   const [isOpen, setIsOpen] = React.useState(false)
+  const [showTrashDialog, setShowTrashDialog] = React.useState(false)
+  const [isArchiving, setIsArchiving] = React.useState(false)
+  const router = useRouter()
 
   const handleAction = (label: string) => {
     if (label === "Copy Link") {
       navigator.clipboard.writeText(window.location.href)
+      toast.success("Link copied to clipboard")
+      setTimeout(() => setIsOpen(false), 100)
+    } else if (label === "Move to Trash") {
+      setShowTrashDialog(true)
       setIsOpen(false)
-      toast("Link copied to clipboard")
+    }
+  }
+
+  const handleMoveToTrash = async () => {
+    setIsArchiving(true)
+    try {
+      const response = await fetch(`/api/notes/${noteId}/archive`, {
+        method: "PATCH",
+      })
+      if (!response.ok) {
+        throw new Error("Failed to move note to trash")
+      }
+      toast.success("Note moved to trash")
+      setShowTrashDialog(false)
+      setTimeout(() => {
+        router.push("/home")
+      }, 500)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to move note to trash")
+    } finally {
+      setIsArchiving(false)
     }
   }
 
@@ -145,6 +167,34 @@ export function NavActions() {
           </Sidebar>
         </PopoverContent>
       </Popover>
+
+      {/* Confirmation Dialog for Move to Trash */}
+      <Dialog open={showTrashDialog} onOpenChange={setShowTrashDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Note to Trash?</DialogTitle>
+            <DialogDescription>
+              This note will be moved to trash and can be restored from there for 30 days.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowTrashDialog(false)}
+              disabled={isArchiving}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleMoveToTrash}
+              disabled={isArchiving}
+            >
+              {isArchiving ? "Moving..." : "Move to Trash"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

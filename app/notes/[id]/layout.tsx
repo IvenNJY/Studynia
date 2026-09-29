@@ -4,6 +4,7 @@ import { NavActions } from "@/components/nav-actions"
 import { SaveNoteButton } from "@/components/notes/save-button"
 import { ShareButton } from "@/components/notes/share-button"
 import { createClient } from "@/lib/server"
+import { Toaster } from "@/components/ui/sonner"
 
 export default async function Layout(props: { children: React.ReactNode, params: Promise<{ id: string }> | { id: string } }) {
   const supabase = await createClient();
@@ -58,10 +59,11 @@ export default async function Layout(props: { children: React.ReactNode, params:
               <ShareButton noteId={noteId} isOwner={permission_level === 'owner'} />
             )}
             {canEdit && <SaveNoteButton />}
-            <NavActions />
+            <NavActions noteId={noteId} />
           </div>
         </header>
         <main className="p-4 md:p-6 lg:p-8 flex justify-center w-full">
+          <Toaster />
           {props.children}
         </main>
         </SidebarInset>

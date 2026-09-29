@@ -5,7 +5,7 @@ import { createClient } from "@/lib/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { CheckSquare, Square, FlaskConical, Key, Save, Globe } from "lucide-react"
+import { FlaskConical, Key, Save, Globe } from "lucide-react"
 
 export function LmsIntegration() {
   const [isConnected, setIsConnected] = useState(false)
@@ -14,14 +14,24 @@ export function LmsIntegration() {
   const [platformName, setPlatformName] = useState("")
   const [token, setToken] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [connectedPlatform, setConnectedPlatform] = useState<string>("")
 
   useEffect(() => {
     const checkConnection = async () => {
       try {
         const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (!user) {
+          setIsChecking(false)
+          return
+        }
+
         const { data, error } = await supabase
           .from("lms_connections")
-          .select("id")
+          .select("id, platform_name, last_synced_at, is_active")
+          .eq("user_id", user.id)
           .eq("is_active", true)
           .limit(1)
 
@@ -29,6 +39,8 @@ export function LmsIntegration() {
 
         if (data && data.length > 0) {
           setIsConnected(true)
+          setConnectedPlatform(data[0].platform_name)
+          setLastSyncedAt(data[0].last_synced_at)
         }
       } catch (err) {
         console.error("Error checking LMS connection:", err)
@@ -159,62 +171,32 @@ export function LmsIntegration() {
             </div>
           </div>
         ) : (
-          <>
-            <div className="bg-muted/50 p-6 rounded-xl flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <p className="text-sm font-semibold text-foreground">Last successful sync</p>
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                </div>
-                <p className="text-3xl font-light text-muted-foreground">Today at 09:42 AM</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  42 modules, 12 assignments, and 8 announcements updated.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  className="font-medium" 
-                  onClick={() => setIsUpdating(true)}
-                >
-                  Update Token
-                </Button>
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6">
-                  Sync Now
-                </Button>
-              </div>
-            </div>
-
+          <div className="bg-muted/50 p-6 rounded-xl flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold text-muted-foreground tracking-widest uppercase mb-4">
-                Active Channels
-              </p>
-              <div className="space-y-3">
-                {[
-                  { title: "Course Content & Syllabus", active: true },
-                  { title: "Deadlines & Milestones", active: true },
-                  { title: "Discussion Boards", active: false },
-                ].map((channel, i) => (
-                  <div 
-                    key={i} 
-                    className={`flex items-center justify-between p-4 rounded-lg bg-muted/30 ${
-                      channel.active ? "border-l-4 border-l-primary" : "border-l-4 border-l-muted"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded bg-muted" />
-                      <span className="text-sm font-medium text-foreground">{channel.title}</span>
-                    </div>
-                    {channel.active ? (
-                      <CheckSquare className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Square className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-sm font-semibold text-foreground">Last successful sync</p>
+                <div className="w-2 h-2 rounded-full bg-primary" />
               </div>
+              <p className="text-3xl font-light text-muted-foreground">
+                {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Never"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Connected to {connectedPlatform}
+              </p>
             </div>
-          </>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="font-medium" 
+                onClick={() => setIsUpdating(true)}
+              >
+                Update Token
+              </Button>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6">
+                Sync Now
+              </Button>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

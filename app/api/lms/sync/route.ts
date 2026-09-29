@@ -31,19 +31,15 @@ export async function POST() {
       return NextResponse.json({ error: "LMS connection not found" }, { status: 404 });
     }
 
-    // 3a. If the user already has stored courses, return them directly.
+    // 3a. Load existing courses so Canvas can be checked for additions and updates.
     const { data: existingCourses, error: coursesError } = await supabaseAdmin
       .from("courses")
-      .select("id, course_name, course_code, description, created_at")
+      .select("id, lms_external_id, course_name, course_code, description, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (coursesError) {
       return NextResponse.json({ error: "Failed to load existing courses" }, { status: 500 });
-    }
-
-    if (existingCourses && existingCourses.length > 0) {
-      return NextResponse.json(existingCourses);
     }
 
     // 4. Call Canvas API
@@ -112,13 +108,57 @@ export async function POST() {
         };
       });
 
-    // Save to Supabase so it persists locally the first time only.
-    if (mappedCourses.length > 0) {
-      await supabaseAdmin.from("courses").upsert(mappedCourses);
+    // Reconcile Canvas courses without relying on a database conflict constraint.
+    const existingCourseByExternalId = new Map(
+      (existingCourses ?? [])
+        .filter((course) => course.lms_external_id)
+        .map((course) => [course.lms_external_id, course])
+    );
+
+    const coursesToInsert = mappedCourses.filter(
+      (course) => !existingCourseByExternalId.has(course.lms_external_id)
+    );
+    const coursesToUpdate = mappedCourses.filter((course) =>
+      existingCourseByExternalId.has(course.lms_external_id)
+    );
+
+    const syncResults = await Promise.all([
+      coursesToInsert.length > 0
+        ? supabaseAdmin.from("courses").insert(coursesToInsert)
+        : Promise.resolve({ error: null }),
+      ...coursesToUpdate.map((course) => {
+        const existingCourse = existingCourseByExternalId.get(course.lms_external_id);
+
+        return supabaseAdmin
+          .from("courses")
+          .update({
+            course_name: course.course_name,
+            course_code: course.course_code,
+            description: course.description,
+          })
+          .eq("id", existingCourse!.id)
+          .eq("user_id", user.id);
+      }),
+    ]);
+
+    const syncError = syncResults.find((result) => result.error)?.error;
+    if (syncError) {
+      console.error("Course sync error:", syncError);
+      return NextResponse.json({ error: "Failed to sync courses" }, { status: 500 });
     }
 
-    // Return the mapped format to the frontend so state updates perfectly
-    return NextResponse.json(mappedCourses);
+    // Return the complete persisted list, including existing courses when there are no additions.
+    const { data: syncedCourses, error: syncedCoursesError } = await supabaseAdmin
+      .from("courses")
+      .select("id, course_name, course_code, description, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (syncedCoursesError) {
+      return NextResponse.json({ error: "Failed to load synced courses" }, { status: 500 });
+    }
+
+    return NextResponse.json(syncedCourses ?? []);
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

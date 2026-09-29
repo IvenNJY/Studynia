@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  ArrowLeft,
   BookOpen,
   ChevronRight,
   Download,
@@ -20,8 +19,10 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
+// --- Types ---
 type ModuleItem = {
   id: number
   title: string
@@ -58,6 +59,7 @@ type FolderApiResponse = {
   modules: Module[]
 }
 
+// --- Utility Functions ---
 function formatModuleType(type: string) {
   return type.replaceAll("_", " ")
 }
@@ -73,14 +75,47 @@ function getItemIcon(type: string) {
   return "page"
 }
 
-function FolderModuleItem({ item }: { item: ModuleItem }) {
+// --- Sub-Components ---
+
+function FolderModuleItem({
+  item,
+  moduleId,
+  isCompleted,
+  onDragStart,
+  onToggleCompletion,
+}: {
+  item: ModuleItem
+  moduleId: number
+  isCompleted: boolean
+  onDragStart: (e: React.DragEvent, itemId: number, moduleId: number) => void
+  onToggleCompletion: (itemId: number) => void
+}) {
   const link = getItemLink(item)
   const iconKind = getItemIcon(item.type)
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border bg-background/70 px-4 py-3 transition-colors hover:bg-muted/40">
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, item.id, moduleId)}
+      className={cn(
+        "flex cursor-grab items-center justify-between gap-4 rounded-xl border bg-background/70 px-4 py-3 transition-all hover:bg-muted/80 active:cursor-grabbing",
+        isCompleted && "bg-muted/30 opacity-75"
+      )}
+    >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+        {/* Checkbox to arbitrarily mark completion */}
+        <div 
+          className="flex h-full items-center" 
+          onPointerDown={(e) => e.stopPropagation()} // Prevent drag initiation when clicking checkbox
+        >
+          <Checkbox 
+            checked={isCompleted} 
+            onCheckedChange={() => onToggleCompletion(item.id)} 
+            className="h-5 w-5 rounded-md"
+          />
+        </div>
+
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg bg-muted", isCompleted && "opacity-50")}>
           {iconKind === "assignment" ? (
             <FileText className="h-4 w-4 text-sky-600" />
           ) : iconKind === "quiz" ? (
@@ -92,7 +127,9 @@ function FolderModuleItem({ item }: { item: ModuleItem }) {
           )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+          <p className={cn("truncate text-sm font-medium transition-colors", isCompleted ? "text-muted-foreground line-through" : "text-foreground")}>
+            {item.title}
+          </p>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">{formatModuleType(item.type)}</p>
         </div>
       </div>
@@ -102,7 +139,8 @@ function FolderModuleItem({ item }: { item: ModuleItem }) {
           href={link}
           target="_blank"
           rel="noreferrer"
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 text-xs")}
+          onPointerDown={(e) => e.stopPropagation()} // Prevent drag when clicking link
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 text-xs", isCompleted && "pointer-events-none opacity-50")}
         >
           Open
           <ExternalLink className="h-3.5 w-3.5" />
@@ -113,6 +151,252 @@ function FolderModuleItem({ item }: { item: ModuleItem }) {
         </Badge>
       )}
     </div>
+  )
+}
+
+function ModuleCard({
+  module,
+  index,
+  completedItems,
+  onDragStart,
+  onDrop,
+  onToggleCompletion,
+}: {
+  module: Module
+  index: number
+  completedItems: Set<number>
+  onDragStart: (e: React.DragEvent, itemId: number, moduleId: number) => void
+  onDrop: (e: React.DragEvent, moduleId: number) => void
+  onToggleCompletion: (itemId: number) => void
+}) {
+  return (
+    <Card className="overflow-hidden border-muted/60 bg-background/90 shadow-sm">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
+              {String(index + 1).padStart(2, "0")}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground">{module.name}</h3>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+                  {module.published ? "Published" : module.state}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {module.items.length} material{module.items.length === 1 ? "" : "s"} inside this module.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+            Module {index + 1}
+          </div>
+        </div>
+
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
+            e.currentTarget.classList.add("ring-2", "ring-primary/50", "bg-muted/30")
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove("ring-2", "ring-primary/50", "bg-muted/30")
+          }}
+          onDrop={(e) => onDrop(e, module.id)}
+          className="grid min-h-[80px] gap-2 rounded-xl transition-all"
+        >
+          {module.items.length > 0 ? (
+            module.items.map((item) => (
+              <FolderModuleItem
+                key={item.id}
+                item={item}
+                moduleId={module.id}
+                isCompleted={completedItems.has(item.id)}
+                onDragStart={onDragStart}
+                onToggleCompletion={onToggleCompletion}
+              />
+            ))
+          ) : (
+            <div className="pointer-events-none flex h-full min-h-[80px] items-center justify-center rounded-xl border border-dashed bg-muted/20 text-sm text-muted-foreground">
+              Drop materials here
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CourseHeader({
+  course,
+  modulesCount,
+  totalItems,
+  progress,
+}: {
+  course: CourseDetail | null
+  modulesCount: number
+  totalItems: number
+  progress: number
+}) {
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="space-y-4">
+        <Badge className="w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10">
+          Canvas Folder
+        </Badge>
+        <div className="space-y-3">
+          <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
+            {course?.course_name || "Course Folder"}
+          </h1>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
+            {course?.description || "Modules pulled directly from Canvas and grouped into a clean folder view."}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 md:w-fit">
+        <Card className="border-muted/50 bg-background/80 shadow-sm">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-semibold text-foreground">{modulesCount}</p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Modules</p>
+          </CardContent>
+        </Card>
+        <Card className="border-muted/50 bg-background/80 shadow-sm">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-semibold text-foreground">{totalItems}</p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Items</p>
+          </CardContent>
+        </Card>
+        <Card className="border-muted/50 bg-background/80 shadow-sm">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-semibold text-foreground">{progress}%</p>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Complete</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function CourseSidebar({
+  course,
+  modulesCount,
+  totalItems,
+  progress,
+  publishedModules,
+  sidebarItems,
+  instructorName,
+}: {
+  course: CourseDetail | null
+  modulesCount: number
+  totalItems: number
+  progress: number
+  publishedModules: number
+  sidebarItems: { moduleName: string; item: ModuleItem }[]
+  instructorName: string
+}) {
+  return (
+    <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+      <Card className="overflow-hidden border-0 bg-linear-to-br from-sky-950 via-sky-900 to-slate-900 text-white shadow-xl shadow-sky-950/20">
+        <CardContent className="space-y-5 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-sky-100/80">Overall Progress</p>
+              <h3 className="mt-1 text-lg font-semibold">{course?.course_code || "Course overview"}</h3>
+            </div>
+            <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-sky-50">
+              {progress}%
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <div className="mb-2 flex items-center justify-between text-xs text-sky-100/80">
+                <span>Completed materials</span>
+                <span>
+                  {Math.round((progress / 100) * totalItems)}/{totalItems}
+                </span>
+              </div>
+              <Progress value={progress} className="h-2 bg-white/10" indicatorclass="bg-cyan-300" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                <p className="text-3xl font-semibold">{modulesCount || 0}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Modules</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                <p className="text-3xl font-semibold">{publishedModules}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Published</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted/60 bg-background/90 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold">Course Resources</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {sidebarItems.length > 0 ? (
+            sidebarItems.map(({ moduleName, item }) => {
+              const link = getItemLink(item)
+
+              return (
+                <div key={`${item.id}-${moduleName}`} className="flex items-start gap-3 rounded-2xl border bg-muted/20 p-3">
+                  <div className="mt-0.5 rounded-lg bg-background p-2">
+                    <FileText className="h-4 w-4 text-sky-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">{moduleName}</p>
+                  </div>
+                  {link ? (
+                    <a href={link} target="_blank" rel="noreferrer" className="pt-1 text-muted-foreground hover:text-foreground">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </div>
+              )
+            })
+          ) : (
+            <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+              No resources found yet.
+            </div>
+          )}
+
+          <Separator />
+
+          <Link href="/resources" className={cn(buttonVariants({ size: "default" }), "w-full gap-2")}>
+            Explore All Materials
+            <Download className="h-4 w-4" />
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted/60 bg-background/90 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold">Instructor</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">{instructorName}</p>
+              <p className="text-sm text-muted-foreground">Lecturer</p>
+            </div>
+          </div>
+
+          <Button variant="outline" className="w-full">
+            Message Lecturer
+          </Button>
+        </CardContent>
+      </Card>
+    </aside>
   )
 }
 
@@ -136,11 +420,17 @@ function LinkedNoteCard({ title, description, label }: { title: string; descript
   )
 }
 
+// --- Main View Component ---
+
 export function FolderView({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<CourseDetail | null>(null)
   const [modules, setModules] = useState<Module[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Arbitrary Client-Side State
+  const [dragContext, setDragContext] = useState<{ itemId: number; moduleId: number } | null>(null)
+  const [completedItems, setCompletedItems] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     let isActive = true
@@ -177,12 +467,63 @@ export function FolderView({ courseId }: { courseId: string }) {
     }
   }, [courseId])
 
+  // Handlers
+  const handleToggleCompletion = (itemId: number) => {
+    setCompletedItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      return next
+    })
+  }
+
+  const handleDragStart = (e: React.DragEvent, itemId: number, moduleId: number) => {
+    setDragContext({ itemId, moduleId })
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move"
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, targetModuleId: number) => {
+    e.preventDefault()
+    e.currentTarget.classList.remove("ring-2", "ring-primary/50", "bg-muted/30")
+
+    if (!dragContext) return
+    if (dragContext.moduleId === targetModuleId) return
+
+    setModules((prevModules) => {
+      const newModules = JSON.parse(JSON.stringify(prevModules)) as Module[]
+
+      const sourceModule = newModules.find((m) => m.id === dragContext.moduleId)
+      const targetModule = newModules.find((m) => m.id === targetModuleId)
+
+      if (!sourceModule || !targetModule) return prevModules
+
+      const itemIndex = sourceModule.items.findIndex((i) => i.id === dragContext.itemId)
+      if (itemIndex === -1) return prevModules
+
+      const [movedItem] = sourceModule.items.splice(itemIndex, 1)
+      targetModule.items.push(movedItem)
+
+      return newModules
+    })
+
+    setDragContext(null)
+  }
+
+  // Derived State
   const stats = useMemo(() => {
     const totalItems = modules.reduce((count, module) => count + module.items.length, 0)
     const publishedModules = modules.filter((module) => module.published).length
-    const progress = modules.length > 0 ? Math.round((publishedModules / modules.length) * 100) : 0
+    
+    // Progress is now calculated by items checked off vs total items
+    const progress = totalItems > 0 ? Math.round((completedItems.size / totalItems) * 100) : 0
+    
     return { totalItems, publishedModules, progress }
-  }, [modules])
+  }, [modules, completedItems])
 
   const sidebarItems = useMemo(
     () =>
@@ -197,7 +538,7 @@ export function FolderView({ courseId }: { courseId: string }) {
   return (
     <div className="w-full max-w-7xl space-y-8">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/folders" className="transition-colors hover:text-foreground">
+        <Link href="/resources" className="transition-colors hover:text-foreground">
           Folders
         </Link>
         <span>/</span>
@@ -227,49 +568,19 @@ export function FolderView({ courseId }: { courseId: string }) {
             <FolderKanban className="mb-4 h-12 w-12 text-muted-foreground" />
             <p className="text-lg font-medium">Unable to load this course</p>
             <p className="mt-2 max-w-lg text-sm text-muted-foreground">{error}</p>
-            <Link href="/folders" className={cn(buttonVariants({ size: "default" }), "mt-6")}>
+            <Link href="/resources" className={cn(buttonVariants({ size: "default" }), "mt-6")}>
               Back to folders
             </Link>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-4">
-              <Badge className="w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10">
-                Canvas Folder
-              </Badge>
-              <div className="space-y-3">
-                <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-                  {course?.course_name || "Course Folder"}
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
-                  {course?.description || "Modules pulled directly from Canvas and grouped into a clean folder view."}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 md:w-fit">
-              <Card className="border-muted/50 bg-background/80 shadow-sm">
-                <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-semibold text-foreground">{modules.length}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Modules</p>
-                </CardContent>
-              </Card>
-              <Card className="border-muted/50 bg-background/80 shadow-sm">
-                <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-semibold text-foreground">{stats.totalItems}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Items</p>
-                </CardContent>
-              </Card>
-              <Card className="border-muted/50 bg-background/80 shadow-sm">
-                <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-semibold text-foreground">{stats.progress}%</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Published</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <CourseHeader
+            course={course}
+            modulesCount={modules.length}
+            totalItems={stats.totalItems}
+            progress={stats.progress}
+          />
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="space-y-6">
@@ -277,10 +588,10 @@ export function FolderView({ courseId }: { courseId: string }) {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Curriculum Modules</h2>
-                    <p className="text-sm text-muted-foreground">Open each module to inspect the Canvas items inside.</p>
+                    <p className="text-sm text-muted-foreground">Drag and drop materials to organize, or check them off as you go.</p>
                   </div>
                   <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
-                    {stats.progress}% Overall Progress
+                    {stats.progress}% Complete
                   </Badge>
                 </div>
 
@@ -297,41 +608,15 @@ export function FolderView({ courseId }: { courseId: string }) {
                     </Card>
                   ) : (
                     modules.map((module, index) => (
-                      <Card key={module.id} className="overflow-hidden border-muted/60 bg-background/90 shadow-sm">
-                        <CardContent className="space-y-4 p-5">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex min-w-0 items-start gap-4">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
-                                {String(index + 1).padStart(2, "0")}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="text-base font-semibold text-foreground">{module.name}</h3>
-                                  <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
-                                    {module.published ? "Published" : module.state}
-                                  </Badge>
-                                </div>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                  {module.items.length} material{module.items.length === 1 ? "" : "s"} inside this module.
-                                </p>
-                              </div>
-                            </div>
-                            <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                              Module {index + 1}
-                            </div>
-                          </div>
-
-                          <div className="grid gap-2">
-                            {module.items.length > 0 ? (
-                              module.items.map((item) => <FolderModuleItem key={item.id} item={item} />)
-                            ) : (
-                              <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
-                                This module does not contain any published items.
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <ModuleCard
+                        key={module.id}
+                        module={module}
+                        index={index}
+                        completedItems={completedItems}
+                        onDragStart={handleDragStart}
+                        onDrop={handleDrop}
+                        onToggleCompletion={handleToggleCompletion}
+                      />
                     ))
                   )}
                 </div>
@@ -371,104 +656,15 @@ export function FolderView({ courseId }: { courseId: string }) {
               </section>
             </div>
 
-            <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-              <Card className="overflow-hidden border-0 bg-linear-to-br from-sky-950 via-sky-900 to-slate-900 text-white shadow-xl shadow-sky-950/20">
-                <CardContent className="space-y-5 p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-sky-100/80">Course Progress</p>
-                      <h3 className="mt-1 text-lg font-semibold">{course?.course_code || "Course overview"}</h3>
-                    </div>
-                    <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-sky-50">
-                      {stats.progress}%
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <div className="mb-2 flex items-center justify-between text-xs text-sky-100/80">
-                        <span>Published modules</span>
-                        <span>{stats.publishedModules}/{modules.length}</span>
-                      </div>
-                      <Progress value={stats.progress} className="h-2 bg-white/10" indicatorclass="bg-cyan-300" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                        <p className="text-3xl font-semibold">{modules.length || 0}</p>
-                        <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Modules</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                        <p className="text-3xl font-semibold">{stats.totalItems || 0}</p>
-                        <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Items</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-muted/60 bg-background/90 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-semibold">Course Resources</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {sidebarItems.length > 0 ? (
-                    sidebarItems.map(({ moduleName, item }) => {
-                      const link = getItemLink(item)
-
-                      return (
-                        <div key={`${item.id}-${moduleName}`} className="flex items-start gap-3 rounded-2xl border bg-muted/20 p-3">
-                          <div className="mt-0.5 rounded-lg bg-background p-2">
-                            <FileText className="h-4 w-4 text-sky-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                            <p className="text-xs text-muted-foreground">{moduleName}</p>
-                          </div>
-                          {link ? (
-                            <a href={link} target="_blank" rel="noreferrer" className="pt-1 text-muted-foreground hover:text-foreground">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : null}
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-                      No resources found yet.
-                    </div>
-                  )}
-
-                  <Separator />
-
-                  <Link href="/resources" className={cn(buttonVariants({ size: "default" }), "w-full gap-2")}>
-                    Explore All Materials
-                    <Download className="h-4 w-4" />
-                  </Link>
-                </CardContent>
-              </Card>
-
-              <Card className="border-muted/60 bg-background/90 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-semibold">Instructor</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Users className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{instructorName}</p>
-                      <p className="text-sm text-muted-foreground">Lecturer</p>
-                    </div>
-                  </div>
-
-                  <Button variant="outline" className="w-full">
-                    Message Lecturer
-                  </Button>
-                </CardContent>
-              </Card>
-            </aside>
+            <CourseSidebar
+              course={course}
+              modulesCount={modules.length}
+              totalItems={stats.totalItems}
+              progress={stats.progress}
+              publishedModules={stats.publishedModules}
+              sidebarItems={sidebarItems}
+              instructorName={instructorName}
+            />
           </div>
         </>
       )}

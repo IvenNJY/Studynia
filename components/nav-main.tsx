@@ -20,6 +20,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuAction,
 } from "@/components/ui/sidebar";
+import type { Role } from "@/lib/authorization";
 
 export type NavItem = {
   id?: string;
@@ -29,6 +30,7 @@ export type NavItem = {
   icon?: LucideIcon;
   href?: string;
   children?: NavItem[];
+  requiredRoles?: readonly Role[];
   action?: {
     icon: LucideIcon;
     href?: string;

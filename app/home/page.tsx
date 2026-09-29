@@ -1,13 +1,7 @@
 import { redirect } from 'next/navigation'
-
 import { createClient } from '@/lib/server'
-import {
-  GpaProgression,
-  StudyVelocity,
-  CourseGradeProgress,
-  ModuleProficiency,
-  StudyHabitInsight,
-} from '@/components/ui/performance'
+import { StudyHabitInsight } from '@/components/ui/performance'
+import { PerformanceDashboard } from '@/components/ui/performance/PerformanceDashboard' // Our new client wrapper
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
@@ -19,26 +13,11 @@ export default async function ProtectedPage() {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pt-4">
-      {/* Top Row: GPA and Velocity */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
-          <GpaProgression />
-        </div>
-        <div className="md:col-span-1">
-          <StudyVelocity />
-        </div>
-      </div>
-
-      {/* Middle Row: Progress and Proficiency */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <CourseGradeProgress />
-        <ModuleProficiency />
-      </div>
-
-      {/* Bottom Row: Insights */}
-      <div>
-        <StudyHabitInsight />
-      </div>
+      <h1 className="text-2xl font-bold text-foreground">Welcome Back! {data.claims.email || 'User'} 
+        👋
+      </h1>
+      {/* Interactive Client-Driven Dashboard Grid */}
+      <PerformanceDashboard />
     </div>
   )
 }
