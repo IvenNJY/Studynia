@@ -77,8 +77,8 @@ export async function POST(request: Request) {
   const body = await request.json() as ResearchPayload
   const validation = getValidatedFields(body)
 
-  if (validation.error) {
-    return NextResponse.json({ error: validation.error }, { status: 400 })
+  if (validation.error || !validation.fields) {
+    return NextResponse.json({ error: validation.error || "Title and link are required" }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin
