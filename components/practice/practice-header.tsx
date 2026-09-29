@@ -14,12 +14,7 @@ export function PracticeHeader() {
         </p>
       </div>
 
-      <Card className="border-primary/30 bg-primary/10">
-        <CardContent className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary">
-          <Sparkles className="h-4 w-4" />
-          Weekly Goal: 85% Complete
-        </CardContent>
-      </Card>
+      
     </div>
   )
 }

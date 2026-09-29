@@ -9,8 +9,13 @@ import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
 import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus } from "lucide-react";
 import { createClient } from "@/lib/client";
+import type { Role } from "@/lib/authorization";
 
 export const navData: NavItem[] = [
+  // These links are hidden for other roles, but their pages must still use requireRole.
+  { label: "Administration", isSection: true, requiredRoles: ["admin"] },
+  { title: "Admin", icon: User, href: "/admin", requiredRoles: ["admin"] },
+
   // Dashboards Section
   { label: "Dashboards", isSection: true },
   { title: "Performance Analytics", icon: PieChart, href: "/home" },
@@ -38,12 +43,34 @@ export const navData: NavItem[] = [
 
   { label: "Info", isSection: true },
   { title: "Account", icon: User, href: "/settings" },
-  { title: "Trash", icon: Trash, href: "trash" },
-  { title: "FAQ", icon: CircleQuestionMarkIcon, href: "#" }
+  { title: "Trash", icon: Trash, href: "/trash" },
+  { title: "FAQ", icon: CircleQuestionMarkIcon, href: "#" },
+
+
 ];
+
+function canSeeItem(item: NavItem, role: Role | null) {
+  return !item.requiredRoles || (role !== null && item.requiredRoles.includes(role));
+}
+
+function filterNavItems(items: NavItem[], role: Role | null): NavItem[] {
+  return items.reduce<NavItem[]>((visibleItems, item) => {
+    if (!canSeeItem(item, role)) return visibleItems;
+
+    const children = item.children
+      ? filterNavItems(item.children, role)
+      : undefined;
+
+    if (item.children && children?.length === 0) return visibleItems;
+
+    visibleItems.push({ ...item, children });
+    return visibleItems;
+  }, []);
+}
 
 export function AppSidebar() {
   const [navItems, setNavItems] = useState<NavItem[]>(navData);
+  const [role, setRole] = useState<Role | null>(null);
 
   useEffect(() => {
     async function fetchNotes() {
@@ -51,6 +78,15 @@ export function AppSidebar() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const userRole = profile?.role as Role | null;
+      setRole(userRole);
 
       const { data: notes, error } = await supabase
         .from("notes")
@@ -104,7 +140,7 @@ export function AppSidebar() {
         <SidebarContent className="overflow-hidden">
           <ScrollArea className="h-[calc(100vh-100px)]">
             <div className="px-4">
-              <NavMain items={navItems} />
+              <NavMain items={filterNavItems(navItems, role)} />
             </div>
             {/* card */}
             {/* <div className="pt-5 px-4">
