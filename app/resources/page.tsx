@@ -16,22 +16,16 @@ export default async function ProtectedPage() {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 pb-20 pt-8 grid grid-cols-1 lg:grid-cols-3 auto-rows-min gap-6">
+    <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pb-20 pt-8 grid grid-cols-1 lg:grid-cols-3 auto-rows-min gap-6">
+      
       <div className="lg:col-span-2">
-        <RecentlySynced />
+        <CourseList />
       </div>
 
       <div className="lg:col-span-1">
         <PinnedResearch />
       </div>
 
-      <div className="lg:col-span-4">
-        <CourseList />
-      </div>
-      
-      <div className="lg:col-span-3">
-        <AllMaterials />
-      </div>
     </div>
   )
 }
