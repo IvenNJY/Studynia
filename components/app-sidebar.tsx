@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
-import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus } from "lucide-react";
+import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/client";
 import type { Role } from "@/lib/authorization";
 
@@ -20,6 +20,7 @@ export const navData: NavItem[] = [
   { label: "Dashboards", isSection: true },
   { title: "Performance Analytics", icon: PieChart, href: "/home" },
   { title: "Resource Management", icon: ClipboardList, href: "/resources" },
+  { title: "Supervisor Review", icon: BarChart3, href: "/students", requiredRoles: ["supervisor"] },
 
   // Pages Section
   { label: "Practice", isSection: true },
