@@ -36,6 +36,7 @@ export type NavItem = {
     href?: string;
     onClick?: () => void;
   };
+  badge?: number;
 };
 
 export function NavMain({ items }: { items: NavItem[] }) {
@@ -148,6 +149,7 @@ function NavMainItem({
                   >
                     {item.icon && <item.icon size={16} />}
                     <span>{item.title}</span>
+                    {!!item.badge && <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[10px] font-semibold text-primary-foreground">{item.badge > 99 ? "99+" : item.badge}</span>}
                     <ChevronRight
                       className={cn(
                         "ml-auto transition-transform duration-200",
@@ -216,6 +218,7 @@ function NavMainItem({
             >
               {item.icon && <item.icon />}
               {item.title}
+              {!!item.badge && <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[10px] font-semibold text-primary-foreground">{item.badge > 99 ? "99+" : item.badge}</span>}
             </SidebarMenuButton>
             {item.action && (
               <SidebarMenuAction 

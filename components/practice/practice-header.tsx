@@ -1,8 +1,21 @@
-import { Sparkles } from "lucide-react"
+import { Users } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import { Card, CardContent } from "@/components/ui/card"
+export type SharedAssessmentUser = {
+  id: string
+  name: string
+  attempts: Array<{ id: string; score: number; created_at: string; assessments?: { title?: string | null; difficulty_level?: string | null } | null }>
+}
 
-export function PracticeHeader() {
+export function PracticeHeader({
+  sharedUsers = [],
+  selectedUserId,
+  onSelectedUserChange,
+}: {
+  sharedUsers?: SharedAssessmentUser[]
+  selectedUserId?: string
+  onSelectedUserChange?: (value: string) => void
+}) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -13,8 +26,24 @@ export function PracticeHeader() {
           Validate your understanding through AI-generated retrieval practice.
         </p>
       </div>
-
-      
+      {sharedUsers.length > 0 && onSelectedUserChange && (
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <Select value={selectedUserId || "mine"} onValueChange={(value) => value && onSelectedUserChange(value)}>
+            <SelectTrigger className="min-w-48">
+              <SelectValue placeholder="View shared results" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mine">My assessments</SelectItem>
+              {sharedUsers.map((sharedUser) => (
+                <SelectItem key={sharedUser.id} value={sharedUser.id}>
+                  {sharedUser.name}&apos;s assessments
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   )
 }

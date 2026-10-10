@@ -7,8 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
-import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3 } from "lucide-react";
+import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/client";
+
+const supabase = createClient();
 import type { Role } from "@/lib/authorization";
 
 export const navData: NavItem[] = [
@@ -21,6 +23,7 @@ export const navData: NavItem[] = [
   { title: "Performance Analytics", icon: PieChart, href: "/home" },
   { title: "Resource Management", icon: ClipboardList, href: "/resources" },
   { title: "Supervisor Review", icon: BarChart3, href: "/students", requiredRoles: ["supervisor"] },
+  { title: "Chat", icon: MessageCircle, href: "/chat" },
 
   // Pages Section
   { label: "Practice", isSection: true },
@@ -72,10 +75,13 @@ function filterNavItems(items: NavItem[], role: Role | null): NavItem[] {
 export function AppSidebar() {
   const [navItems, setNavItems] = useState<NavItem[]>(navData);
   const [role, setRole] = useState<Role | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
     async function fetchNotes() {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) return;
@@ -87,7 +93,27 @@ export function AppSidebar() {
         .maybeSingle();
 
       const userRole = profile?.role as Role | null;
+      if (cancelled) return;
       setRole(userRole);
+
+      const loadUnreadCount = async () => {
+        const response = await fetch("/api/chat", { cache: "no-store" });
+        if (response.ok && !cancelled) {
+          const data = await response.json();
+          setUnreadCount(data.unreadCount ?? 0);
+        }
+      };
+      await loadUnreadCount();
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(`chat-notifications-${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "chat_messages", filter: `sender_id=neq.${user.id}` },
+          () => { void loadUnreadCount() },
+        )
+        .subscribe();
 
       const { data: notes, error } = await supabase
         .from("notes")
@@ -120,7 +146,15 @@ export function AppSidebar() {
     }
 
     fetchNotes();
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, []);
+
+  const displayedNavItems = navItems.map((item) =>
+    item.title === "Chat" ? { ...item, badge: unreadCount } : item
+  );
 
   return (
     <Sidebar className="px-0 h-full [&_[data-slot=sidebar-inner]]:h-full">
@@ -129,10 +163,16 @@ export function AppSidebar() {
         <SidebarHeader className="px-4">
           <SidebarMenu>
             <SidebarMenuItem>
-              <a href="/home" className="w-full h-full flex items-center gap-2">
+              <div className="flex w-full items-center justify-between gap-2">
+              <a href="/home" className="flex h-full items-center gap-2">
                 <img src="/logo 1.png" alt="Logo" className="w-10 h-10" /> 
                 <span>StudyNia</span>
               </a>
+              <a href="/chat" aria-label={`Chat${unreadCount ? `, ${unreadCount} unread messages` : ""}`} className="relative rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <MessageCircle className="h-4 w-4" />
+                {!!unreadCount && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[9px] font-semibold text-primary-foreground">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+              </a>
+              </div>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
@@ -141,7 +181,7 @@ export function AppSidebar() {
         <SidebarContent className="overflow-hidden">
           <ScrollArea className="h-[calc(100vh-100px)]">
             <div className="px-4">
-              <NavMain items={filterNavItems(navItems, role)} />
+              <NavMain items={filterNavItems(displayedNavItems, role)} />
             </div>
             {/* card */}
             {/* <div className="pt-5 px-4">

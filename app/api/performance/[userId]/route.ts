@@ -6,6 +6,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+type Mistake = {
+  user_answer: unknown
+  assessment_questions: {
+    question_text: string | null
+    correct_answer: string | null
+    topic: string | null
+  } | null
+  assessment_attempts: { id: string } | null
+}
+
 // Add the context parameter to access dynamic route params
 export async function GET(
   req: Request, 
@@ -25,7 +35,6 @@ export async function GET(
       .eq("user_id", userId)
       .eq("status", "completed")
       .order("created_at", { ascending: false })
-      .limit(10)
 
     if (attemptsError) throw attemptsError
 
@@ -34,13 +43,12 @@ export async function GET(
       .from("attempt_answers")
       .select(`
         is_correct, user_answer,
-        assessment_questions ( question_text, correct_answer, options ),
-        assessment_attempts!inner ( user_id )
+        assessment_questions ( question_text, correct_answer, options, topic ),
+        assessment_attempts!inner ( id, user_id )
       `)
       .eq("assessment_attempts.user_id", userId)
       .eq("is_correct", false)
       .order("created_at", { ascending: false })
-      .limit(15)
 
     if (mistakesError) throw mistakesError
 
@@ -54,14 +62,37 @@ export async function GET(
 
     if (assessmentsError) throw assessmentsError
 
-    return NextResponse.json({ 
+    const mistakesByAttempt = ((mistakesData ?? []) as unknown as Mistake[]).reduce<Record<string, Array<{
+      question: string
+      topic: string | null
+      userAnswer: string
+      correctAnswer: string
+    }>>>((grouped, item) => {
+      const attemptId = item.assessment_attempts?.id
+      if (!attemptId) return grouped
+      const answer = item.user_answer
+      const userAnswer = answer && typeof answer === "object" && "value" in answer
+        ? String((answer as { value?: unknown }).value)
+        : "Unknown"
+      const question = item.assessment_questions
+      ;(grouped[attemptId] ??= []).push({
+        question: question?.question_text || "Question unavailable",
+        topic: question?.topic || null,
+        userAnswer,
+        correctAnswer: question?.correct_answer || "Unavailable",
+      })
+      return grouped
+    }, {})
+
+    return NextResponse.json({
       attempts: attemptsData || [], 
       mistakes: mistakesData || [],
-      assessments: assessmentsData || [] 
+      assessments: assessmentsData || [],
+      mistakesByAttempt,
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Database Fetch Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Database fetch failed" }, { status: 500 })
   }
 }

@@ -1,9 +1,10 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Lightbulb, Target, TrendingUp, Clock, AlertTriangle, CheckCircle2, XCircle, Loader2, FileText, Play } from "lucide-react"
+import { Lightbulb, Target, TrendingUp, Clock, AlertTriangle, CheckCircle2, XCircle, Loader2, FileText, Play, Share2, Trash2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -16,6 +17,38 @@ import {
 import { createClient } from "@/lib/client"
 import QuizPlayer from "./QuizPlayer" // <-- Ensure this path is correct for your project
 
+type Attempt = {
+  id: string
+  score: number
+  created_at: string
+  assessments?: { title?: string | null; difficulty_level?: string | null } | null
+}
+
+type SharedAttempt = Attempt
+
+type Mistake = {
+  assessment_questions?: {
+    question_text?: string | null
+    correct_answer?: string | null
+  } | null
+  user_answer?: unknown
+}
+
+type AttemptMistake = {
+  question: string
+  topic: string | null
+  userAnswer: string
+  correctAnswer: string
+}
+
+type QuizQuestion = {
+  id: string
+  question: string
+  options: unknown
+  correct_answer: string
+  explanation?: string | null
+}
+
 // Helper to format dates like "2 days ago"
 function timeAgo(dateString: string) {
   const date = new Date(dateString)
@@ -27,19 +60,80 @@ function timeAgo(dateString: string) {
   return `${Math.floor(seconds / 86400)} days ago`
 }
 
-export function PerformanceSidebar() {
+export function PerformanceSidebar({
+  sharedAttempts,
+  sharedUserName,
+}: {
+  sharedAttempts?: SharedAttempt[]
+  sharedUserName?: string
+}) {
   const [activeTab, setActiveTab] = useState("overview")
   const [loading, setLoading] = useState(true)
   
   // Data states
-  const [recentAttempts, setRecentAttempts] = useState<any[]>([])
-  const [mistakes, setMistakes] = useState<any[]>([])
-  const [assessments, setAssessments] = useState<any[]>([])
+  const [recentAttempts, setRecentAttempts] = useState<Attempt[]>([])
+  const [mistakes, setMistakes] = useState<Mistake[]>([])
+  const [assessments, setAssessments] = useState<Array<{ id: string; title: string; created_at: string; test_type?: string | null }>>([])
   const [stats, setStats] = useState({ avgScore: 0, totalTaken: 0 })
+  const [mistakesByAttempt, setMistakesByAttempt] = useState<Record<string, AttemptMistake[]>>({})
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [shareAttempt, setShareAttempt] = useState<Attempt | null>(null)
+  const [shareEmail, setShareEmail] = useState("")
+  const [shareError, setShareError] = useState("")
+  const [shareMessage, setShareMessage] = useState("")
+  const [shares, setShares] = useState<Array<{ id: string; shared_with_id: string; profiles?: { full_name?: string | null } | null }>>([])
+  const [shareLoading, setShareLoading] = useState(false)
 
   // Quiz Player States
-  const [activeQuiz, setActiveQuiz] = useState<{ questions: any[], assessmentId: string } | null>(null)
+  const [activeQuiz, setActiveQuiz] = useState<{ questions: QuizQuestion[], assessmentId: string } | null>(null)
   const [startingId, setStartingId] = useState<string | null>(null) // Tracks which test is currently loading
+
+  const loadShares = async (attemptId: string) => {
+    const response = await fetch(`/api/attempts/${attemptId}/share`)
+    if (response.ok) setShares((await response.json()).shares || [])
+  }
+
+  const openShare = (attempt: Attempt) => {
+    setShareAttempt(attempt)
+    setShareEmail("")
+    setShareError("")
+    setShareMessage("")
+    void loadShares(attempt.id)
+  }
+
+  const submitShare = async () => {
+    if (!shareAttempt || !shareEmail.trim()) return
+    setShareLoading(true)
+    setShareError("")
+    setShareMessage("")
+    try {
+      const response = await fetch(`/api/attempts/${shareAttempt.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: shareEmail }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to share assessment")
+      setShareMessage("Assessment shared successfully.")
+      setShareEmail("")
+      await loadShares(shareAttempt.id)
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : "Failed to share assessment")
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const removeShare = async (sharedWithId: string) => {
+    if (!shareAttempt) return
+    const response = await fetch(`/api/attempts/${shareAttempt.id}/share`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sharedWithId }),
+    })
+    if (response.ok) await loadShares(shareAttempt.id)
+  }
 
   useEffect(() => {
     async function fetchPerformanceData() {
@@ -56,13 +150,51 @@ export function PerformanceSidebar() {
         
         const data = await response.json()
         
-        setRecentAttempts(data.attempts || [])
-        setMistakes(data.mistakes || [])
+        let attempts: Attempt[] = data.attempts || []
+        let nextMistakes: Mistake[] = data.mistakes || []
+        let nextMistakesByAttempt: Record<string, AttemptMistake[]> = data.mistakesByAttempt || {}
+
+        if (sharedAttempts?.length) {
+          const sharedDetails = await Promise.all(sharedAttempts.map(async (attempt) => {
+            const detailResponse = await fetch(`/api/attempts/shared/${attempt.id}`)
+            if (!detailResponse.ok) throw new Error("Failed to load shared assessment")
+            return detailResponse.json() as Promise<{
+              attempt: Attempt
+              answers: Array<{
+                user_answer?: unknown
+                is_correct?: boolean
+                assessment_questions?: { question_text?: string | null; correct_answer?: string | null; topic?: string | null } | null
+              }>
+            }>
+          }))
+          attempts = sharedDetails.map((detail) => detail.attempt)
+          nextMistakes = sharedDetails.flatMap((detail) => detail.answers.filter((answer) => !answer.is_correct).map((answer) => ({
+            user_answer: answer.user_answer,
+            assessment_questions: answer.assessment_questions ? {
+              question_text: answer.assessment_questions.question_text || null,
+              correct_answer: answer.assessment_questions.correct_answer || null,
+            } : null,
+          })))
+          nextMistakesByAttempt = Object.fromEntries(sharedDetails.map((detail) => [
+            detail.attempt.id,
+            detail.answers.filter((answer) => !answer.is_correct).map((answer) => ({
+              question: answer.assessment_questions?.question_text || "Question unavailable",
+              topic: answer.assessment_questions?.topic || null,
+              userAnswer: answer.user_answer && typeof answer.user_answer === "object" && "value" in answer.user_answer
+                ? String((answer.user_answer as { value?: unknown }).value)
+                : "Unknown",
+              correctAnswer: answer.assessment_questions?.correct_answer || "Unavailable",
+            })),
+          ]))
+        }
+
+        setRecentAttempts(attempts)
+        setMistakes(nextMistakes)
+        setMistakesByAttempt(nextMistakesByAttempt)
         setAssessments(data.assessments || []) 
         
         // Calculate Overview Stats
-        const attempts = data.attempts || []
-        const totalScores = attempts.reduce((sum: number, att: any) => sum + (att.score || 0), 0)
+        const totalScores = attempts.reduce((sum, att) => sum + (att.score || 0), 0)
         
         setStats({
           avgScore: attempts.length > 0 ? Math.round(totalScores / attempts.length) : 0,
@@ -77,7 +209,7 @@ export function PerformanceSidebar() {
     }
 
     fetchPerformanceData()
-  }, [])
+  }, [sharedAttempts])
 
   // Handle Starting a Past Assessment
   const handleStartAssessment = async (assessmentId: string) => {
@@ -89,7 +221,13 @@ export function PerformanceSidebar() {
       const data = await response.json()
       
       // Map database schema back to what the QuizPlayer expects
-      const formattedQuestions = data.questions.map((q: any) => ({
+      const formattedQuestions = data.questions.map((q: {
+        id: string
+        question_text: string
+        options: unknown
+        correct_answer: string
+        explanation?: string | null
+      }): QuizQuestion => ({
         id: q.id,
         question: q.question_text,
         options: q.options,
@@ -110,15 +248,24 @@ export function PerformanceSidebar() {
 
   // Derive Chart Data
   const chartData = recentAttempts.slice(0, 7).reverse().map(att => att.score || 0)
+  const selectedAttempt = recentAttempts.find((attempt) => attempt.id === selectedAttemptId) || recentAttempts[0]
+  const selectedAttemptMistakes = selectedAttempt ? (mistakesByAttempt[selectedAttempt.id] || []) : []
+  const selectedWeakAreas = selectedAttemptMistakes.reduce<Record<string, number>>((areas, mistake) => {
+    const area = mistake.topic || "Uncategorised"
+    areas[area] = (areas[area] || 0) + 1
+    return areas
+  }, {})
 
   return (
     <div className="space-y-6">
       {/* --- RECENT PERFORMANCE SECTION --- */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-lg font-semibold text-foreground">Recent Performance</h3>
+          <h3 className="text-lg font-semibold text-foreground">
+            {sharedUserName ? `${sharedUserName}'s Performance Review` : "Recent Performance"}
+          </h3>
 
-          <Dialog>
+          <Dialog open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
             <DialogTrigger render={
               <button className="cursor-pointer text-sm font-bold text-primary transition-colors hover:text-primary/80 underline-offset-4 hover:underline">
                 View Full Analytics
@@ -157,6 +304,16 @@ export function PerformanceSidebar() {
                   </div>
                 ) : activeTab === "overview" ? (
                   <div className="space-y-8">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {recentAttempts.map((attempt) => (
+                        <button key={attempt.id} onClick={() => setSelectedAttemptId(attempt.id)} className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted ${selectedAttempt?.id === attempt.id ? "border-primary bg-primary/5" : ""}`}>
+                          <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{attempt.assessments?.title || "Unknown Assessment"}</span><span className="font-bold text-primary">{attempt.score}%</span></div>
+                          <p className="mt-1 text-xs text-muted-foreground">{new Date(attempt.created_at).toLocaleDateString()}</p>
+                        </button>
+                      ))}
+                    </div>
+                    {selectedAttempt && <Card className="border-primary/20 bg-primary/5"><CardContent className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected performance</p><h3 className="mt-1 text-lg font-bold">{selectedAttempt.assessments?.title || "Unknown Assessment"}</h3></div><div className="text-3xl font-bold text-primary">{selectedAttempt.score}%</div></div><p className="mt-2 text-sm text-muted-foreground">{selectedAttemptMistakes.length ? `${selectedAttemptMistakes.length} incorrect answer${selectedAttemptMistakes.length === 1 ? "" : "s"} identified below.` : "No weak areas found for this attempt."}</p></CardContent></Card>}
+                    {selectedAttempt && <div className="space-y-3"><h3 className="text-lg font-semibold">Highlighted weak areas</h3>{Object.keys(selectedWeakAreas).length === 0 ? <p className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">Excellent work. This attempt has no recorded incorrect answers.</p> : <div className="flex flex-wrap gap-2">{Object.entries(selectedWeakAreas).map(([area, count]) => <Badge key={area} variant="destructive">{area} · {count} incorrect</Badge>)}</div>}</div>}
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Select Course</p>
                       <Select defaultValue="all">
@@ -284,9 +441,16 @@ export function PerformanceSidebar() {
                         {timeAgo(attempt.created_at)} · {difficulty}
                       </p>
                     </div>
-                    <Button variant={isDanger ? "default" : "outline"} className={isDanger ? "bg-primary text-primary-foreground" : ""}>
-                      {isDanger ? "Retake" : "Review"}
-                    </Button>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant={isDanger ? "default" : "outline"} className={isDanger ? "bg-primary text-primary-foreground" : ""} onClick={() => { setSelectedAttemptId(attempt.id); setActiveTab("overview"); setAnalyticsOpen(true) }}>
+                        Show analytics
+                      </Button>
+                      {!sharedUserName && (
+                        <Button variant="ghost" size="icon" aria-label={`Share ${title}`} onClick={() => openShare(attempt)}>
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )
@@ -296,7 +460,7 @@ export function PerformanceSidebar() {
       </div>
 
       {/* --- READY TO PRACTICE SECTION --- */}
-      <div className="space-y-4 pt-4 border-t border-border/50">
+      {!sharedUserName && <div className="space-y-4 pt-4 border-t border-border/50">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-lg font-semibold text-foreground">Past Assessments</h3>
         </div>
@@ -306,7 +470,7 @@ export function PerformanceSidebar() {
             <div className="py-4 text-center text-sm text-muted-foreground">Loading assessments...</div>
           ) : assessments.length === 0 ? (
             <p className="text-sm px-1 leading-relaxed text-muted-foreground">
-              You haven't generated any assessments yet. Select a course and generate one to get started!
+              You haven&apos;t generated any assessments yet. Select a course and generate one to get started!
             </p>
           ) : (
             assessments.map((assessment) => (
@@ -343,7 +507,7 @@ export function PerformanceSidebar() {
             ))
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Quiz Player Modal Overlay */}
       <Dialog 
@@ -360,6 +524,47 @@ export function PerformanceSidebar() {
               onReset={() => setActiveQuiz(null)} 
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!shareAttempt} onOpenChange={(open) => !open && setShareAttempt(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share assessment results</DialogTitle>
+            <DialogDescription>
+              Allow another StudyNia user to view the results for {shareAttempt?.assessments?.title || "this assessment"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={shareEmail}
+                onChange={(event) => setShareEmail(event.target.value)}
+                placeholder="person@example.com"
+                className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                onKeyDown={(event) => event.key === "Enter" && void submitShare()}
+              />
+              <Button onClick={() => void submitShare()} disabled={shareLoading || !shareEmail.trim()}>
+                {shareLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Share"}
+              </Button>
+            </div>
+            {shareError && <p className="text-sm text-destructive">{shareError}</p>}
+            {shareMessage && <p className="text-sm text-primary">{shareMessage}</p>}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">People with access</p>
+              {shares.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Not shared with anyone yet.</p>
+              ) : shares.map((share) => (
+                <div key={share.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>{share.profiles?.full_name || "StudyNia user"}</span>
+                  <Button variant="ghost" size="icon" aria-label="Remove access" onClick={() => void removeShare(share.shared_with_id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
