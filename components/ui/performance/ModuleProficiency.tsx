@@ -1,21 +1,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, UploadCloud } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 
 export function ModuleProficiency({ stats }: { 
   stats: { mastered: number, reviewing: number, inProgress: number } 
 }) {
+  const segments = [
+    { label: "Mastered", value: stats.mastered, color: "hsl(var(--chart-1))" },
+    { label: "Reviewing", value: stats.reviewing, color: "hsl(var(--chart-2))" },
+    { label: "In progress", value: stats.inProgress, color: "hsl(var(--chart-3))" },
+  ]
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0)
+  let offset = 0
+  const gradient = total === 0
+    ? "hsl(var(--muted)) 0 100%"
+    : segments.map((segment) => {
+      const start = (offset / total) * 100
+      offset += segment.value
+      return `${segment.color} ${start}% ${(offset / total) * 100}%`
+    }).join(", ")
+
   return (
     <Card className="shadow-none border-border/50 border bg-muted/30 sm:p-2 h-full flex flex-col">
       <CardHeader className="pb-6">
@@ -23,68 +25,26 @@ export function ModuleProficiency({ stats }: {
           Module Proficiency
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-4 flex-1">
-        <div className="flex flex-col items-center justify-center bg-card rounded-xl shadow-sm border border-border p-4 transition-all">
-          <span className="text-3xl font-black text-primary">{stats.mastered.toString().padStart(2, '0')}</span>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-wider">MASTERED</span>
-        </div>
-        <div className="flex flex-col items-center justify-center bg-card rounded-xl shadow-sm border border-border p-4 transition-all">
-          <span className="text-3xl font-black text-chart-2">{stats.reviewing.toString().padStart(2, '0')}</span>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-wider">REVIEWING</span>
-        </div>
-        <div className="flex flex-col items-center justify-center bg-card rounded-xl shadow-sm border border-border p-4 transition-all">
-          <span className="text-3xl font-black text-chart-3">{stats.inProgress.toString().padStart(2, '0')}</span>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-wider">IN PROGRESS</span>
-        </div>
-
-        <Dialog>
-          <DialogTrigger>
-            <span className="cursor-pointer flex flex-col w-full items-center justify-center bg-transparent rounded-xl border-2 border-dashed border-border hover:bg-accent transition-colors p-4 group">
-              <Plus className="mb-1 text-muted-foreground group-hover:text-accent-foreground" />
-              <span className="text-[10px] font-bold text-muted-foreground tracking-wider group-hover:text-accent-foreground transition-colors">
-                NEW TARGET
-              </span>
-            </span>
-          </DialogTrigger>
-          
-          <DialogContent className="sm:max-w-[30%]">
-            <DialogHeader>
-              <DialogTitle>Add New Target</DialogTitle>
-              <DialogDescription>
-                Specify the course and module you want to focus on next.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="course">Course</Label>
-                <Input id="course" placeholder="e.g., Advanced React Patterns" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="module">Module</Label>
-                <Input id="module" placeholder="e.g., Custom Hooks" />
-              </div>
-
-              {/* Drag and Drop Sample */}
-              <div className="grid gap-2 pt-2">
-                <Label>Supporting Materials</Label>
-                <label 
-                  htmlFor="file-upload" 
-                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg border-border bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <UploadCloud className="w-8 h-8 mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <p className="mb-1 text-sm text-foreground font-medium">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">SVG, PNG, JPG or PDF (MAX. 10MB)</p>
-                  </div>
-                  <input id="file-upload" type="file" className="hidden" />
-                </label>
-              </div>
+      <CardContent className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
+        <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
+          <div className="absolute inset-8 flex items-center justify-center rounded-full bg-muted/30 text-center">
+            <div>
+              <div className="text-2xl font-black text-foreground">{total}</div>
+              <div className="text-[10px] font-bold tracking-wider text-muted-foreground">MATERIALS</div>
             </div>
-            <DialogFooter>
-              <Button type="submit">Save Target</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
+        <div className="w-full max-w-xs space-y-3">
+          {segments.map((segment) => (
+            <div key={segment.label} className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
+                {segment.label}
+              </span>
+              <span className="font-semibold text-foreground">{segment.value}</span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   )

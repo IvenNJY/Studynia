@@ -96,6 +96,44 @@ export function AppSidebar() {
       if (cancelled) return;
       setRole(userRole);
 
+      const cachedCourses = sessionStorage.getItem(`studynia:courses:${user.id}`)
+      let courses: Array<{ id: string; course_name: string | null }> = []
+      if (cachedCourses) {
+        try {
+          const parsed = JSON.parse(cachedCourses) as { expiresAt: number; courses: typeof courses }
+          if (parsed.expiresAt > Date.now()) courses = parsed.courses
+        } catch {
+          sessionStorage.removeItem(`studynia:courses:${user.id}`)
+        }
+      }
+      if (courses.length === 0) {
+        const { data: courseRows, error: coursesError } = await supabase
+          .from("courses")
+          .select("id, course_name")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+        if (coursesError) {
+          console.error("Error fetching courses:", coursesError)
+        } else {
+          courses = courseRows ?? []
+          sessionStorage.setItem(`studynia:courses:${user.id}`, JSON.stringify({
+            expiresAt: Date.now() + 5 * 60 * 1000,
+            courses,
+          }))
+        }
+      }
+      if (!cancelled) {
+        setNavItems((prev) => prev.map((item) => item.title === "Folder"
+          ? {
+              ...item,
+              children: courses.map((course) => ({
+                title: course.course_name || "Untitled course",
+                href: `/folders/${course.id}`,
+              })),
+            }
+          : item))
+      }
+
       const loadUnreadCount = async () => {
         const response = await fetch("/api/chat", { cache: "no-store" });
         if (response.ok && !cancelled) {
