@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/server"
+import { normalizeLmsToken } from "@/lib/lms-token"
 import { NextResponse } from "next/server"
 
 type CourseRecord = {
@@ -78,8 +79,60 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 			.eq("user_id", user.id)
 			.single()
 
-		if (connectionError || !connection) {
-			return NextResponse.json({ error: "LMS connection not found" }, { status: 404 })
+		const { data: localCourse } = await supabaseAdmin
+			.from("courses")
+			.select("id, course_name, course_code, description, lms_external_id")
+			.eq("user_id", user.id)
+			.eq("id", courseId)
+			.maybeSingle()
+
+		if (connectionError || !connection || (localCourse && !localCourse.lms_external_id)) {
+			if (!localCourse) return NextResponse.json({ error: "LMS connection not found" }, { status: 404 })
+
+			const { data: localMaterials, error: localMaterialsError } = await supabaseAdmin
+				.from("materials")
+				.select("id, title, content_type, file_url, module_name")
+				.eq("user_id", user.id)
+				.eq("course_id", localCourse.id)
+				.order("created_at", { ascending: true })
+			if (localMaterialsError) return NextResponse.json({ error: "Failed to load local materials" }, { status: 500 })
+
+			const localMaterialIds = (localMaterials ?? []).map((material) => material.id)
+			const { data: localProgress } = localMaterialIds.length > 0
+				? await supabaseAdmin.from("material_progress").select("material_id, viewed").eq("user_id", user.id).in("material_id", localMaterialIds)
+				: { data: [] }
+			const viewed = new Map((localProgress ?? []).map((row) => [row.material_id, Boolean(row.viewed)]))
+			const grouped = new Map<string, typeof localMaterials>()
+			for (const material of localMaterials ?? []) {
+				const moduleName = material.module_name || "My Materials"
+				grouped.set(moduleName, [...(grouped.get(moduleName) ?? []), material])
+			}
+
+			return NextResponse.json({
+				course: { ...localCourse, lms_external_id: "", syllabus_body: "", instructor: "You", course_url: "" },
+				modules: Array.from(grouped.entries()).map(([name, items], index) => ({
+					id: -(index + 1),
+					name,
+					position: index,
+					published: true,
+					state: "published",
+					items: items.map((item, itemIndex) => ({
+						id: itemIndex + 1,
+						material_id: item.id,
+						title: item.title,
+						type: item.content_type || "text",
+						html_url: item.file_url || undefined,
+						published: true,
+						position: itemIndex,
+						viewed: Boolean(viewed.get(item.id)),
+					})),
+				})),
+			})
+		}
+
+		const accessToken = normalizeLmsToken(connection.access_token)
+		if (!accessToken) {
+			return NextResponse.json({ error: "LMS access token is empty or invalid" }, { status: 502 })
 		}
 
 		const { data: localCourseByExternalId, error: localCourseExternalError } = await supabaseAdmin
@@ -136,11 +189,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 			fetch(
 				`${baseUrl}/api/v1/courses/${canvasCourseId}?include[]=term&include[]=syllabus_body&include[]=teachers`,
 				{
-					headers: { Authorization: `Bearer ${connection.access_token}` },
+					headers: { Authorization: `Bearer ${accessToken}` },
 				}
 			),
 			fetch(`${baseUrl}/api/v1/courses/${canvasCourseId}/modules?per_page=100`, {
-				headers: { Authorization: `Bearer ${connection.access_token}` },
+				headers: { Authorization: `Bearer ${accessToken}` },
 			}),
 		])
 
@@ -162,7 +215,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 					const itemsResponse = await fetch(
 						`${baseUrl}/api/v1/courses/${canvasCourseId}/modules/${module.id}/items?per_page=100`,
 						{
-							headers: { Authorization: `Bearer ${connection.access_token}` },
+							headers: { Authorization: `Bearer ${accessToken}` },
 						}
 					)
 
@@ -197,6 +250,86 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 				})
 		)
 
+		const materialRows = modules.flatMap((module) =>
+			module.items.map((item) => ({
+				user_id: user.id,
+				course_id: resolvedCourse?.id,
+				lms_external_id: String(item.id),
+				title: item.title,
+				content_type: item.type.includes("assignment") ? "deadline" : "text",
+				file_url: item.html_url || item.url || item.page_url || null,
+				module_name: module.name,
+				source: "lms",
+				updated_at: new Date().toISOString(),
+			}))
+		).filter((material) => material.course_id)
+
+		const uniqueMaterialRows = Array.from(
+			new Map(
+				materialRows.map((material) => [
+					`${material.user_id}:${material.lms_external_id}`,
+					material,
+				])
+			).values()
+		)
+
+		if (uniqueMaterialRows.length > 0) {
+			const { error: materialError } = await supabaseAdmin
+				.from("materials")
+				.upsert(uniqueMaterialRows, { onConflict: "user_id,lms_external_id" })
+
+			if (materialError) {
+				console.error("Material sync error:", {
+					code: materialError.code,
+					message: materialError.message,
+					details: materialError.details,
+					hint: materialError.hint,
+				})
+				return NextResponse.json(
+					{
+						error: "Course loaded, but materials could not be saved",
+						details: materialError.message,
+						code: materialError.code,
+					},
+					{ status: 500 }
+				)
+			}
+		}
+
+		const { data: persistedMaterials } = await supabaseAdmin
+			.from("materials")
+			.select("id, lms_external_id")
+			.eq("user_id", user.id)
+			.eq("course_id", resolvedCourse?.id)
+
+		const materialIds = (persistedMaterials ?? []).map((material) => material.id)
+		const { data: progressRows } = materialIds.length > 0
+			? await supabaseAdmin
+				.from("material_progress")
+				.select("material_id, viewed")
+				.eq("user_id", user.id)
+				.in("material_id", materialIds)
+			: { data: [] }
+
+		const progressByMaterialId = new Map(
+			(progressRows ?? []).map((row) => [row.material_id, Boolean(row.viewed)])
+		)
+		const materialIdByExternalId = new Map(
+			(persistedMaterials ?? []).map((material) => [material.lms_external_id, material.id])
+		)
+
+		const modulesWithPersistence = modules.map((module) => ({
+			...module,
+			items: module.items.map((item) => {
+				const materialId = materialIdByExternalId.get(String(item.id))
+				return {
+					...item,
+					material_id: materialId,
+					viewed: materialId ? Boolean(progressByMaterialId.get(materialId)) : false,
+				}
+			}),
+		}))
+
 		const instructor = courseData.teachers?.[0]?.display_name || courseData.teachers?.[0]?.name || "Lecturer"
 
 		return NextResponse.json({
@@ -212,7 +345,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 				instructor,
 				course_url: typeof courseData.html_url === "string" ? courseData.html_url : "",
 			},
-			modules,
+			modules: modulesWithPersistence,
 		})
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : "Unknown error"

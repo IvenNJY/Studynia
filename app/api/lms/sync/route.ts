@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/server"; // Your cookie-handling helper
+import { normalizeLmsToken } from "@/lib/lms-token";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -30,6 +31,10 @@ export async function POST() {
     if (connError || !connection) {
       return NextResponse.json({ error: "LMS connection not found" }, { status: 404 });
     }
+    const accessToken = normalizeLmsToken(connection.access_token);
+    if (!accessToken) {
+      return NextResponse.json({ error: "LMS access token is empty or invalid" }, { status: 502 });
+    }
 
     // 3a. Load existing courses so Canvas can be checked for additions and updates.
     const { data: existingCourses, error: coursesError } = await supabaseAdmin
@@ -46,7 +51,7 @@ export async function POST() {
     const baseUrl = connection.domain.replace(/\/$/, "");
     const canvasResponse = await fetch(`${baseUrl}/api/v1/courses?enrollment_state=active,inactive&per_page=100&include[]=term`, {
       headers: {
-        Authorization: `Bearer ${connection.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
       },
     });
@@ -147,6 +152,78 @@ export async function POST() {
       return NextResponse.json({ error: "Failed to sync courses" }, { status: 500 });
     }
 
+    const { data: persistedCourses, error: persistedCoursesError } = await supabaseAdmin
+      .from("courses")
+      .select("id, lms_external_id")
+      .eq("user_id", user.id)
+
+    if (persistedCoursesError) {
+      return NextResponse.json({ error: "Failed to load courses for assignment sync" }, { status: 500 })
+    }
+
+    const assignmentResults = await Promise.all(
+      (persistedCourses ?? [])
+        .filter((course) => course.lms_external_id)
+        .map(async (course) => {
+          const assignmentsResponse = await fetch(
+            `${baseUrl}/api/v1/courses/${course.lms_external_id}/assignments?per_page=100`,
+            { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }
+          )
+          if (!assignmentsResponse.ok) return []
+
+          const rawAssignments = await assignmentsResponse.json() as Array<Record<string, unknown>>
+          return (Array.isArray(rawAssignments) ? rawAssignments : [])
+            .filter((assignment) => assignment.id)
+            .map((assignment) => ({
+              user_id: user.id,
+              course_id: course.id,
+              lms_external_id: String(assignment.id),
+              title: typeof assignment.name === "string" ? assignment.name : "Untitled assignment",
+              description: typeof assignment.description === "string" ? assignment.description : null,
+              file_url: typeof assignment.html_url === "string" ? assignment.html_url : null,
+              due_date: typeof assignment.due_at === "string" ? assignment.due_at : null,
+              points_possible: typeof assignment.points_possible === "number" ? assignment.points_possible : null,
+              source: "lms",
+              updated_at: new Date().toISOString(),
+            }))
+        })
+    )
+
+    const assignments = Array.from(
+      new Map(
+        assignmentResults
+          .flat()
+          .map((assignment) => [`${assignment.user_id}:${assignment.lms_external_id}`, assignment])
+      ).values()
+    )
+    if (assignments.length > 0) {
+      const { error: assignmentError } = await supabaseAdmin
+        .from("assignments")
+        .upsert(assignments, { onConflict: "user_id,lms_external_id" })
+      if (assignmentError) {
+        console.error("Assignment sync error:", {
+          code: assignmentError.code,
+          message: assignmentError.message,
+          details: assignmentError.details,
+          hint: assignmentError.hint,
+        })
+        return NextResponse.json(
+          {
+            error: "Courses synced, but assignments could not be saved",
+            details: assignmentError.message,
+            code: assignmentError.code,
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    await supabaseAdmin
+      .from("lms_connections")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+
     // Return the complete persisted list, including existing courses when there are no additions.
     const { data: syncedCourses, error: syncedCoursesError } = await supabaseAdmin
       .from("courses")
@@ -158,7 +235,13 @@ export async function POST() {
       return NextResponse.json({ error: "Failed to load synced courses" }, { status: 500 });
     }
 
-    return NextResponse.json(syncedCourses ?? []);
+    const { data: syncedAssignments } = await supabaseAdmin
+      .from("assignments")
+      .select("id, course_id, title, file_url, due_date, points_possible, is_completed, source")
+      .eq("user_id", user.id)
+      .order("due_date", { ascending: true, nullsFirst: false })
+
+    return NextResponse.json({ courses: syncedCourses ?? [], assignments: syncedAssignments ?? [] });
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

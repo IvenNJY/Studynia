@@ -84,8 +84,14 @@ export function GenerateTestCard() {
         }
         
         const text = await response.text()
-        const data = JSON.parse(text)
-        setCourses(data as Course[])
+        const data = JSON.parse(text) as { courses?: Array<Course & { description?: string }> } | Array<Course & { description?: string }>
+        const syncedCourses: Array<Course & { description?: string }> = Array.isArray(data) ? data : data.courses ?? []
+        setCourses(
+          syncedCourses.map((course) => ({
+            ...course,
+            term: course.term || course.description || "Unknown",
+          }))
+        )
 
         // // Extract unique semesters
         // const semesters = Array.from(

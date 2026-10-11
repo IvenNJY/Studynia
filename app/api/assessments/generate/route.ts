@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/server"
+import { normalizeLmsToken } from "@/lib/lms-token"
 import { NextResponse } from "next/server"
 
 type AssessmentFile = {
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
 			.eq("user_id", user.id)
 			.single()
 
-		if (connectionError || !connection?.access_token) {
+		const accessToken = normalizeLmsToken(connection?.access_token)
+		if (connectionError || !accessToken) {
 			return NextResponse.json({ error: "LMS connection not found" }, { status: 404 })
 		}
 
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
-				canvas_token: connection.access_token,
+				canvas_token: accessToken,
 				num_questions: body.num_questions ?? 5,
 				files: body.files,
 			}),

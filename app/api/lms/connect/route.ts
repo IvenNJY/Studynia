@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/server";
+import { normalizeLmsToken } from "@/lib/lms-token";
 
 export async function POST(request: Request) {
 	try {
@@ -8,7 +9,8 @@ export async function POST(request: Request) {
 			token?: string;
 		};
 
-		if (!platform_name || !token) {
+		const normalizedToken = normalizeLmsToken(token);
+		if (!platform_name || !normalizedToken) {
 			return NextResponse.json(
 				{ error: "platform_name and token are required" },
 				{ status: 400 }
@@ -19,7 +21,7 @@ export async function POST(request: Request) {
 
 		const { data, error } = await supabase.rpc("store_lms_token", {
 			p_platform_name: platform_name,
-			p_token: token,
+			p_token: normalizedToken,
 		});
 
 		if (error) {
@@ -39,5 +41,4 @@ export async function POST(request: Request) {
 		);
 	}
 }
-
 

@@ -2,10 +2,8 @@ import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/server'
 import { CourseList } from '@/components/ui/resource-management/CourseList'
-import { ResourceHeader } from '@/components/ui/resource-management/ResourceHeader'
-import { RecentlySynced } from '@/components/ui/resource-management/RecentlySynced'
 import { PinnedResearch } from '@/components/ui/resource-management/PinnedResearch'
-import { AllMaterials } from '@/components/ui/resource-management/AllMaterials'
+import { AssignmentsSummary } from '@/components/ui/resource-management/AssignmentsSummary'
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
@@ -24,6 +22,10 @@ export default async function ProtectedPage() {
 
       <div className="lg:col-span-1">
         <PinnedResearch />
+      </div>
+      
+      <div className="lg:col-span-3">
+        <AssignmentsSummary />
       </div>
 
     </div>
