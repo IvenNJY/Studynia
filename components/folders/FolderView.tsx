@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   BookOpen,
@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 // --- Types ---
@@ -32,6 +33,8 @@ type ModuleItem = {
   page_url?: string
   published: boolean
   position: number
+  material_id?: string
+  viewed?: boolean
 }
 
 type Module = {
@@ -431,6 +434,11 @@ export function FolderView({ courseId }: { courseId: string }) {
   // Arbitrary Client-Side State
   const [dragContext, setDragContext] = useState<{ itemId: number; moduleId: number } | null>(null)
   const [completedItems, setCompletedItems] = useState<Set<number>>(new Set())
+  const pendingProgress = useRef(new Map<string, boolean>())
+  const progressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showAddMaterial, setShowAddMaterial] = useState(false)
+  const [materialTitle, setMaterialTitle] = useState("")
+  const [materialUrl, setMaterialUrl] = useState("")
 
   useEffect(() => {
     let isActive = true
@@ -450,7 +458,13 @@ export function FolderView({ courseId }: { courseId: string }) {
         if (!isActive) return
 
         setCourse(payload.course || null)
-        setModules(Array.isArray(payload.modules) ? payload.modules : [])
+        const nextModules = Array.isArray(payload.modules) ? payload.modules : []
+        setModules(nextModules)
+        setCompletedItems(new Set(
+          nextModules.flatMap((module) => module.items)
+            .filter((item) => item.viewed)
+            .map((item) => item.id)
+        ))
       } catch (err: unknown) {
         if (!isActive) return
 
@@ -461,23 +475,93 @@ export function FolderView({ courseId }: { courseId: string }) {
     }
 
     loadCourse()
-
     return () => {
       isActive = false
+      if (progressTimer.current) clearTimeout(progressTimer.current)
     }
   }, [courseId])
 
   // Handlers
   const handleToggleCompletion = (itemId: number) => {
+    const item = modules.flatMap((module) => module.items).find((candidate) => candidate.id === itemId)
     setCompletedItems((prev) => {
       const next = new Set(prev)
-      if (next.has(itemId)) {
+      const viewed = !next.has(itemId)
+      if (!viewed) {
         next.delete(itemId)
       } else {
         next.add(itemId)
       }
+      if (item?.material_id) pendingProgress.current.set(item.material_id, viewed)
       return next
     })
+
+    if (progressTimer.current) clearTimeout(progressTimer.current)
+    progressTimer.current = setTimeout(async () => {
+      const updates = Array.from(pendingProgress.current.entries()).map(([material_id, viewed]) => ({ material_id, viewed }))
+      pendingProgress.current.clear()
+      if (updates.length === 0) return
+      const response = await fetch("/api/material-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      })
+      if (!response.ok) console.error("Failed to save material progress")
+    }, 700)
+  }
+
+  const handleAddMaterial = async () => {
+    if (!course?.id || !materialTitle.trim() || !materialUrl.trim()) return
+    const response = await fetch("/api/materials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: course.id, title: materialTitle, file_url: materialUrl }),
+    })
+    if (!response.ok) {
+      setError("Failed to save the material.")
+      return
+    }
+    const material = await response.json() as {
+      id: string
+      title: string
+      file_url: string
+      content_type: string
+    }
+    setModules((previous) => {
+      const firstModule = previous[0]
+      if (!firstModule) {
+        return [{
+          id: -1,
+          name: "My Materials",
+          position: 0,
+          published: true,
+          state: "published",
+          items: [{
+            id: Date.now(),
+            material_id: material.id,
+            title: material.title,
+            type: material.content_type,
+            html_url: material.file_url,
+            published: true,
+            position: 0,
+          }],
+        }]
+      }
+      return previous.map((module, index) => index === 0
+        ? { ...module, items: [...module.items, {
+          id: Date.now(),
+          material_id: material.id,
+          title: material.title,
+          type: material.content_type,
+          html_url: material.file_url,
+          published: true,
+          position: module.items.length,
+        }] }
+        : module)
+    })
+    setMaterialTitle("")
+    setMaterialUrl("")
+    setShowAddMaterial(false)
   }
 
   const handleDragStart = (e: React.DragEvent, itemId: number, moduleId: number) => {
@@ -590,10 +674,25 @@ export function FolderView({ courseId }: { courseId: string }) {
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Curriculum Modules</h2>
                     <p className="text-sm text-muted-foreground">Drag and drop materials to organize, or check them off as you go.</p>
                   </div>
-                  <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
-                    {stats.progress}% Complete
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAddMaterial((visible) => !visible)}>
+                      Add material
+                    </Button>
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+                      {stats.progress}% Complete
+                    </Badge>
+                  </div>
                 </div>
+
+                {showAddMaterial && (
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
+                      <Input value={materialTitle} onChange={(event) => setMaterialTitle(event.target.value)} placeholder="Material title" />
+                      <Input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} placeholder="File URL" type="url" />
+                      <Button onClick={handleAddMaterial} disabled={!materialTitle.trim() || !materialUrl.trim()}>Save</Button>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="space-y-4">
                   {modules.length === 0 ? (

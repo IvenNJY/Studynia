@@ -1,5 +1,5 @@
 export { GpaProgression } from "./GpaProgression"
 export { StudyVelocity } from "./StudyVelocity"
-export { CourseGradeProgress } from "./CourseGradeProgress"
 export { ModuleProficiency } from "./ModuleProficiency"
 export { StudyHabitInsight } from "./StudyHabitInsight"
+export { UpcomingAssignments } from "./UpcomingAssignments"
