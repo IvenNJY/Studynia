@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   BookOpen,
@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 // --- Types ---
@@ -32,6 +33,8 @@ type ModuleItem = {
   page_url?: string
   published: boolean
   position: number
+  material_id?: string
+  viewed?: boolean
 }
 
 type Module = {
@@ -59,7 +62,40 @@ type FolderApiResponse = {
   modules: Module[]
 }
 
+type LinkedNote = {
+  id: string
+  title: string | null
+  content: unknown
+  updated_at: string
+  course_id: string | null
+}
+
 // --- Utility Functions ---
+function getNotePreview(content: unknown) {
+  const textParts: string[] = []
+
+  const collectText = (value: unknown) => {
+    if (typeof value === "string") {
+      textParts.push(value)
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(collectText)
+      return
+    }
+
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>
+      if (typeof record.text === "string") textParts.push(record.text)
+      if (Array.isArray(record.content)) record.content.forEach(collectText)
+    }
+  }
+
+  collectText(content)
+  return textParts.join(" ").replace(/\s+/g, " ").trim().slice(0, 160)
+}
+
 function formatModuleType(type: string) {
   return type.replaceAll("_", " ")
 }
@@ -400,17 +436,17 @@ function CourseSidebar({
   )
 }
 
-function LinkedNoteCard({ title, description, label }: { title: string; description: string; label: string }) {
+function LinkedNoteCard({ title, description, label, noteId }: { title: string; description: string; label: string; noteId?: string }) {
   return (
     <Card className="border-muted/50 bg-background shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md">
       <CardContent className="space-y-3 p-4">
         <Badge variant="outline" className="bg-primary/5 text-[10px] uppercase tracking-[0.18em] text-primary">
           {label}
         </Badge>
-        <div>
+        <Link href={noteId ? `/notes/${noteId}` : "/notes"} className="block">
           <p className="font-medium text-foreground">{title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
+        </Link>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Users className="h-3.5 w-3.5" />
           Linked to this module set
@@ -427,10 +463,16 @@ export function FolderView({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<Module[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [linkedNotes, setLinkedNotes] = useState<LinkedNote[]>([])
 
   // Arbitrary Client-Side State
   const [dragContext, setDragContext] = useState<{ itemId: number; moduleId: number } | null>(null)
   const [completedItems, setCompletedItems] = useState<Set<number>>(new Set())
+  const pendingProgress = useRef(new Map<string, boolean>())
+  const progressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showAddMaterial, setShowAddMaterial] = useState(false)
+  const [materialTitle, setMaterialTitle] = useState("")
+  const [materialUrl, setMaterialUrl] = useState("")
 
   useEffect(() => {
     let isActive = true
@@ -450,7 +492,20 @@ export function FolderView({ courseId }: { courseId: string }) {
         if (!isActive) return
 
         setCourse(payload.course || null)
-        setModules(Array.isArray(payload.modules) ? payload.modules : [])
+        const notesResponse = await fetch(`/api/courses/${courseId}/notes`, { cache: "no-store" })
+        if (notesResponse.ok && isActive) {
+          const notesPayload = await notesResponse.json() as LinkedNote[]
+          setLinkedNotes(Array.isArray(notesPayload) ? notesPayload : [])
+        } else if (isActive) {
+          setLinkedNotes([])
+        }
+        const nextModules = Array.isArray(payload.modules) ? payload.modules : []
+        setModules(nextModules)
+        setCompletedItems(new Set(
+          nextModules.flatMap((module) => module.items)
+            .filter((item) => item.viewed)
+            .map((item) => item.id)
+        ))
       } catch (err: unknown) {
         if (!isActive) return
 
@@ -461,23 +516,93 @@ export function FolderView({ courseId }: { courseId: string }) {
     }
 
     loadCourse()
-
     return () => {
       isActive = false
+      if (progressTimer.current) clearTimeout(progressTimer.current)
     }
   }, [courseId])
 
   // Handlers
   const handleToggleCompletion = (itemId: number) => {
+    const item = modules.flatMap((module) => module.items).find((candidate) => candidate.id === itemId)
     setCompletedItems((prev) => {
       const next = new Set(prev)
-      if (next.has(itemId)) {
+      const viewed = !next.has(itemId)
+      if (!viewed) {
         next.delete(itemId)
       } else {
         next.add(itemId)
       }
+      if (item?.material_id) pendingProgress.current.set(item.material_id, viewed)
       return next
     })
+
+    if (progressTimer.current) clearTimeout(progressTimer.current)
+    progressTimer.current = setTimeout(async () => {
+      const updates = Array.from(pendingProgress.current.entries()).map(([material_id, viewed]) => ({ material_id, viewed }))
+      pendingProgress.current.clear()
+      if (updates.length === 0) return
+      const response = await fetch("/api/material-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      })
+      if (!response.ok) console.error("Failed to save material progress")
+    }, 700)
+  }
+
+  const handleAddMaterial = async () => {
+    if (!course?.id || !materialTitle.trim() || !materialUrl.trim()) return
+    const response = await fetch("/api/materials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: course.id, title: materialTitle, file_url: materialUrl }),
+    })
+    if (!response.ok) {
+      setError("Failed to save the material.")
+      return
+    }
+    const material = await response.json() as {
+      id: string
+      title: string
+      file_url: string
+      content_type: string
+    }
+    setModules((previous) => {
+      const firstModule = previous[0]
+      if (!firstModule) {
+        return [{
+          id: -1,
+          name: "My Materials",
+          position: 0,
+          published: true,
+          state: "published",
+          items: [{
+            id: Date.now(),
+            material_id: material.id,
+            title: material.title,
+            type: material.content_type,
+            html_url: material.file_url,
+            published: true,
+            position: 0,
+          }],
+        }]
+      }
+      return previous.map((module, index) => index === 0
+        ? { ...module, items: [...module.items, {
+          id: Date.now(),
+          material_id: material.id,
+          title: material.title,
+          type: material.content_type,
+          html_url: material.file_url,
+          published: true,
+          position: module.items.length,
+        }] }
+        : module)
+    })
+    setMaterialTitle("")
+    setMaterialUrl("")
+    setShowAddMaterial(false)
   }
 
   const handleDragStart = (e: React.DragEvent, itemId: number, moduleId: number) => {
@@ -590,10 +715,25 @@ export function FolderView({ courseId }: { courseId: string }) {
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Curriculum Modules</h2>
                     <p className="text-sm text-muted-foreground">Drag and drop materials to organize, or check them off as you go.</p>
                   </div>
-                  <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
-                    {stats.progress}% Complete
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAddMaterial((visible) => !visible)}>
+                      Add material
+                    </Button>
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+                      {stats.progress}% Complete
+                    </Badge>
+                  </div>
                 </div>
+
+                {showAddMaterial && (
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
+                      <Input value={materialTitle} onChange={(event) => setMaterialTitle(event.target.value)} placeholder="Material title" />
+                      <Input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} placeholder="File URL" type="url" />
+                      <Button onClick={handleAddMaterial} disabled={!materialTitle.trim() || !materialUrl.trim()}>Save</Button>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="space-y-4">
                   {modules.length === 0 ? (
@@ -635,16 +775,24 @@ export function FolderView({ courseId }: { courseId: string }) {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <LinkedNoteCard
-                    label="Practical Lab"
-                    title="Lab 1 - Jupyter Testing"
-                    description="Quick setup notes for testing the course environment inside Jupyter or local notebooks."
-                  />
-                  <LinkedNoteCard
-                    label="Study Guide"
-                    title="Week 2 revision pack"
-                    description="Key terms, prompts, and references extracted from the current module list."
-                  />
+                  {linkedNotes.map((note) => (
+                    <LinkedNoteCard
+                      key={note.id}
+                      noteId={note.id}
+                      label={note.course_id === courseId ? "Course Note" : "Course Tag"}
+                      title={note.title || "Untitled note"}
+                      description={getNotePreview(note.content) || "Open this note to view its contents."}
+                    />
+                  ))}
+                  {linkedNotes.length === 0 && (
+                    <Card className="border-dashed border-muted/60 bg-transparent shadow-none">
+                      <CardContent className="flex h-full min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
+                        <FileText className="mb-3 h-10 w-10" />
+                        <p className="font-medium text-foreground">No linked notes yet</p>
+                        <p className="mt-1 text-sm">Bind a note tag to this course to show it here.</p>
+                      </CardContent>
+                    </Card>
+                  )}
                   <Card className="border-dashed border-muted/60 bg-transparent shadow-none">
                     <CardContent className="flex h-full min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
                       <GraduationCap className="mb-3 h-10 w-10" />

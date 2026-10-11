@@ -59,7 +59,7 @@ export default async function Layout(props: { children: React.ReactNode, params:
               <ShareButton noteId={noteId} isOwner={permission_level === 'owner'} />
             )}
             {canEdit && <SaveNoteButton />}
-            <NavActions noteId={noteId} />
+            <NavActions noteId={noteId} canEdit={canEdit} />
           </div>
         </header>
         <main className="p-4 md:p-6 lg:p-8 flex justify-center w-full">

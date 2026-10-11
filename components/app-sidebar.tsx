@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
-import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3, MessageCircle } from "lucide-react";
+import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3, MessageCircle, Inbox, Star } from "lucide-react";
 import { createClient } from "@/lib/client";
 
 const supabase = createClient();
@@ -24,6 +24,7 @@ export const navData: NavItem[] = [
   { title: "Resource Management", icon: ClipboardList, href: "/resources" },
   { title: "Supervisor Review", icon: BarChart3, href: "/students", requiredRoles: ["supervisor"] },
   { title: "Chat", icon: MessageCircle, href: "/chat" },
+  { title: "Inbox", icon: Inbox, href: "/inbox" },
 
   // Pages Section
   { label: "Practice", isSection: true },
@@ -42,13 +43,13 @@ export const navData: NavItem[] = [
       icon: Plus,
       href: "/add-note"
     },
-    children: [], // will be populated dynamically
+    children: [{ label: "All Notes", isSection: true }, { label: "Favorites", isSection: true }],
   },
 
   { label: "Info", isSection: true },
   { title: "Account", icon: User, href: "/settings" },
   { title: "Trash", icon: Trash, href: "/trash" },
-  { title: "FAQ", icon: CircleQuestionMarkIcon, href: "#" },
+  { title: "FAQ", icon: CircleQuestionMarkIcon, href: "/faq" },
 
 
 ];
@@ -76,9 +77,11 @@ export function AppSidebar() {
   const [navItems, setNavItems] = useState<NavItem[]>(navData);
   const [role, setRole] = useState<Role | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadInboxCount, setUnreadInboxCount] = useState(0);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let inboxChannel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
 
     async function fetchNotes() {
@@ -96,6 +99,44 @@ export function AppSidebar() {
       if (cancelled) return;
       setRole(userRole);
 
+      const cachedCourses = sessionStorage.getItem(`studynia:courses:${user.id}`)
+      let courses: Array<{ id: string; course_name: string | null }> = []
+      if (cachedCourses) {
+        try {
+          const parsed = JSON.parse(cachedCourses) as { expiresAt: number; courses: typeof courses }
+          if (parsed.expiresAt > Date.now()) courses = parsed.courses
+        } catch {
+          sessionStorage.removeItem(`studynia:courses:${user.id}`)
+        }
+      }
+      if (courses.length === 0) {
+        const { data: courseRows, error: coursesError } = await supabase
+          .from("courses")
+          .select("id, course_name")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+        if (coursesError) {
+          console.error("Error fetching courses:", coursesError)
+        } else {
+          courses = courseRows ?? []
+          sessionStorage.setItem(`studynia:courses:${user.id}`, JSON.stringify({
+            expiresAt: Date.now() + 5 * 60 * 1000,
+            courses,
+          }))
+        }
+      }
+      if (!cancelled) {
+        setNavItems((prev) => prev.map((item) => item.title === "Folder"
+          ? {
+              ...item,
+              children: courses.map((course) => ({
+                title: course.course_name || "Untitled course",
+                href: `/folders/${course.id}`,
+              })),
+            }
+          : item))
+      }
+
       const loadUnreadCount = async () => {
         const response = await fetch("/api/chat", { cache: "no-store" });
         if (response.ok && !cancelled) {
@@ -104,6 +145,14 @@ export function AppSidebar() {
         }
       };
       await loadUnreadCount();
+      const loadInboxCount = async () => {
+        const response = await fetch("/api/inbox", { cache: "no-store" });
+        if (response.ok && !cancelled) {
+          const notifications = await response.json() as Array<{ read_at: string | null }>;
+          setUnreadInboxCount(notifications.filter((notification) => !notification.read_at).length);
+        }
+      };
+      await loadInboxCount();
       if (cancelled) return;
 
       channel = supabase
@@ -114,10 +163,18 @@ export function AppSidebar() {
           () => { void loadUnreadCount() },
         )
         .subscribe();
+      inboxChannel = supabase
+        .channel(`inbox-notifications-${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "inbox_notifications", filter: `recipient_id=eq.${user.id}` },
+          () => { void loadInboxCount() },
+        )
+        .subscribe();
 
       const { data: notes, error } = await supabase
         .from("notes")
-        .select("id, title")
+        .select("id, title, note_favorites(note_id)")
         .eq("is_archived", false)
         .order("updated_at", { ascending: false });
 
@@ -133,11 +190,20 @@ export function AppSidebar() {
           if (item.title === "Notes") {
             return {
               ...item,
-              children: notes.map((note) => ({
+              children: [
+                { label: "Favorites", isSection: true, href: "/favorites" },
+                ...notes.filter((note) => note.note_favorites?.length).map((note) => ({
+                  id: `favorite-${note.id}`,
+                  title: note.title || "Untitled Note",
+                  href: `/notes/${note.id}`,
+                })),
+                { label: "All Notes", isSection: true, href: "/notes" },
+                ...notes.map((note) => ({
                 id: note.id,
                 title: note.title || "Untitled Note",
                 href: `/notes/${note.id}`,
-              })),
+                })),
+              ],
             };
           }
           return item;
@@ -149,11 +215,13 @@ export function AppSidebar() {
     return () => {
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
+      if (inboxChannel) void supabase.removeChannel(inboxChannel);
     };
   }, []);
 
   const displayedNavItems = navItems.map((item) =>
-    item.title === "Chat" ? { ...item, badge: unreadCount } : item
+    item.title === "Chat" ? { ...item, badge: unreadCount } :
+      item.title === "Inbox" ? { ...item, badge: unreadInboxCount } : item
   );
 
   return (

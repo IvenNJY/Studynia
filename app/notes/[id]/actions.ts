@@ -52,6 +52,20 @@ export async function shareNoteWithEmail(noteId: string, email: string, permissi
     })
 
   if (insertError) return { error: insertError.message }
+  const { data: note } = await supabase.from("notes").select("title, owner_id").eq("id", noteId).maybeSingle()
+  if (note) {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { error: notificationError } = await admin.from("inbox_notifications").insert({
+      recipient_id: targetUserId,
+      actor_id: note.owner_id,
+      notification_type: "note_share",
+      note_id: noteId,
+      title: "A note was shared with you",
+      body: `${note.title || "A note"} is now available in your notes.`,
+    })
+    if (notificationError) return { error: `Note shared, but inbox notification failed: ${notificationError.message}` }
+  }
   return { success: true, message: "Note shared successfully." }
 }
 

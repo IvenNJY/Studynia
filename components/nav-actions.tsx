@@ -52,14 +52,6 @@ const data = [
       icon: Link,
     },
     {
-      label: "Duplicate",
-      icon: Copy,
-    },
-    {
-      label: "Move to",
-      icon: CornerUpRight,
-    },
-    {
       label: "Move to Trash",
       icon: Trash2,
     },
@@ -69,26 +61,49 @@ const data = [
       label: "Undo",
       icon: CornerUpLeft,
     },
-    {
-      label: "View analytics",
-      icon: LineChart,
-    },
-    {
-      label: "Version History",
-      icon: GalleryVerticalEnd,
-    },
-    {
-      label: "Notifications",
-      icon: Bell,
-    },
   ],
 ]
 
-export function NavActions({ noteId }: { noteId: string }) {
+export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit?: boolean }) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [showTrashDialog, setShowTrashDialog] = React.useState(false)
   const [isArchiving, setIsArchiving] = React.useState(false)
   const router = useRouter()
+  const [favorite, setFavorite] = React.useState(false)
+  const [tag, setTag] = React.useState("")
+  const [tagCourseId, setTagCourseId] = React.useState("")
+  const [tags, setTags] = React.useState<Array<{ id: string; name: string; course_id?: string | null }>>([])
+  const [courses, setCourses] = React.useState<Array<{ id: string; course_name: string | null }>>([])
+  React.useEffect(() => {
+    fetch(`/api/notes/${noteId}/metadata`).then((response) => response.ok ? response.json() : null).then((data: { favorite?: boolean; tags?: Array<{ id: string; name: string; course_id?: string | null }> } | null) => {
+      if (data) { setFavorite(Boolean(data.favorite)); setTags(data.tags ?? []) }
+    }).catch(() => undefined)
+    fetch("/api/courses").then((response) => response.ok ? response.json() : []).then(setCourses).catch(() => undefined)
+  }, [noteId])
+  const toggleFavorite = async () => {
+    const next = !favorite
+    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorite: next }) })
+    if (response.ok) setFavorite(next)
+  }
+  const saveTag = async () => {
+    if (!tag.trim()) return
+    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag, courseId: tagCourseId || null }) })
+    if (response.ok) {
+      const data = await fetch(`/api/notes/${noteId}/metadata`).then((response) => response.json())
+      setTags(data.tags ?? [])
+      toast.success("Tag added")
+      setTag("")
+      setTagCourseId("")
+    }
+  }
+  const updateTag = async (tagId: string, name: string, courseId: string | null) => {
+    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, tag: name, courseId }) })
+    if (response.ok) setTags((current) => current.map((entry) => entry.id === tagId ? { ...entry, name, course_id: courseId } : entry))
+  }
+  const removeTag = async (tagId: string) => {
+    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId }) })
+    if (response.ok) setTags((current) => current.filter((entry) => entry.id !== tagId))
+  }
 
   const handleAction = (label: string) => {
     if (label === "Copy Link") {
@@ -127,8 +142,8 @@ export function NavActions({ noteId }: { noteId: string }) {
       <div className="hidden font-medium text-muted-foreground md:inline-block">
         Edit Oct 08
       </div>
-      <Button variant="ghost" size="icon" className="h-7 w-7">
-        <Star />
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void toggleFavorite()} aria-label={favorite ? "Remove favorite" : "Add favorite"}>
+        <Star className={favorite ? "fill-yellow-400 text-yellow-500" : ""} />
       </Button>
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger
@@ -152,7 +167,7 @@ export function NavActions({ noteId }: { noteId: string }) {
                 <SidebarGroup key={index} className="border-b last:border-none">
                   <SidebarGroupContent className="gap-0">
                     <SidebarMenu>
-                      {group.map((item, index) => (
+                      {group.filter((item) => canEdit || item.label !== "Move to Trash").map((item, index) => (
                         <SidebarMenuItem key={index}>
                           <SidebarMenuButton onClick={() => handleAction(item.label)}>
                             <item.icon /> <span>{item.label}</span>
@@ -167,6 +182,16 @@ export function NavActions({ noteId }: { noteId: string }) {
           </Sidebar>
         </PopoverContent>
       </Popover>
+      {canEdit && <Popover>
+        <PopoverTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Tag note">#</Button>} />
+        <PopoverContent className="w-80 space-y-3">
+          <p className="text-sm font-medium">Manage tags</p>
+          {tags.map((entry) => <div key={entry.id} className="space-y-1 rounded-md border p-2"><div className="flex gap-1"><input className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-sm" defaultValue={entry.name} onBlur={(event) => void updateTag(entry.id, event.target.value.trim() || entry.name, entry.course_id ?? null)} /><Button size="sm" variant="ghost" onClick={() => void removeTag(entry.id)}>Delete</Button></div><select className="w-full rounded border bg-background px-2 py-1 text-xs" value={entry.course_id ?? ""} onChange={(event) => void updateTag(entry.id, entry.name, event.target.value || null)}><option value="">No course</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.course_name || "Untitled course"}</option>)}</select></div>)}
+          <input className="w-full rounded-md border bg-background px-2 py-1 text-sm" value={tag} onChange={(event) => setTag(event.target.value)} placeholder="e.g. Exam revision" onKeyDown={(event) => { if (event.key === "Enter") void saveTag() }} />
+          <select className="w-full rounded border bg-background px-2 py-1 text-xs" value={tagCourseId} onChange={(event) => setTagCourseId(event.target.value)}><option value="">Bind to no course</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.course_name || "Untitled course"}</option>)}</select>
+          <Button size="sm" onClick={() => void saveTag()}>Add tag</Button>
+        </PopoverContent>
+      </Popover>}
 
       {/* Confirmation Dialog for Move to Trash */}
       <Dialog open={showTrashDialog} onOpenChange={setShowTrashDialog}>
