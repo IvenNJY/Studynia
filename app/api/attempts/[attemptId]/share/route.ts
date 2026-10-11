@@ -38,6 +38,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
   if (!recipient || recipient.id === user.id) return NextResponse.json({ error: "No other StudyNia user was found with that email" }, { status: 404 })
   const { error } = await supabase.from("assessment_shares").upsert({ attempt_id: attemptId, shared_with_id: recipient.id }, { onConflict: "attempt_id,shared_with_id" })
   if (error) return NextResponse.json({ error: "Failed to share assessment" }, { status: 500 })
+  const { error: notificationError } = await supabase.from("inbox_notifications").insert({
+    recipient_id: recipient.id,
+    actor_id: user.id,
+    notification_type: "assessment_share",
+    attempt_id: attemptId,
+    title: "An assessment was shared with you",
+    body: "Open the Assessment Centre to review the shared results.",
+  })
+  if (notificationError) return NextResponse.json({ error: `Assessment shared, but inbox notification failed: ${notificationError.message}` }, { status: 500 })
   return NextResponse.json({ success: true })
 }
 

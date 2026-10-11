@@ -62,7 +62,40 @@ type FolderApiResponse = {
   modules: Module[]
 }
 
+type LinkedNote = {
+  id: string
+  title: string | null
+  content: unknown
+  updated_at: string
+  course_id: string | null
+}
+
 // --- Utility Functions ---
+function getNotePreview(content: unknown) {
+  const textParts: string[] = []
+
+  const collectText = (value: unknown) => {
+    if (typeof value === "string") {
+      textParts.push(value)
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(collectText)
+      return
+    }
+
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>
+      if (typeof record.text === "string") textParts.push(record.text)
+      if (Array.isArray(record.content)) record.content.forEach(collectText)
+    }
+  }
+
+  collectText(content)
+  return textParts.join(" ").replace(/\s+/g, " ").trim().slice(0, 160)
+}
+
 function formatModuleType(type: string) {
   return type.replaceAll("_", " ")
 }
@@ -403,17 +436,17 @@ function CourseSidebar({
   )
 }
 
-function LinkedNoteCard({ title, description, label }: { title: string; description: string; label: string }) {
+function LinkedNoteCard({ title, description, label, noteId }: { title: string; description: string; label: string; noteId?: string }) {
   return (
     <Card className="border-muted/50 bg-background shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md">
       <CardContent className="space-y-3 p-4">
         <Badge variant="outline" className="bg-primary/5 text-[10px] uppercase tracking-[0.18em] text-primary">
           {label}
         </Badge>
-        <div>
+        <Link href={noteId ? `/notes/${noteId}` : "/notes"} className="block">
           <p className="font-medium text-foreground">{title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
+        </Link>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Users className="h-3.5 w-3.5" />
           Linked to this module set
@@ -430,6 +463,7 @@ export function FolderView({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<Module[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [linkedNotes, setLinkedNotes] = useState<LinkedNote[]>([])
 
   // Arbitrary Client-Side State
   const [dragContext, setDragContext] = useState<{ itemId: number; moduleId: number } | null>(null)
@@ -458,6 +492,15 @@ export function FolderView({ courseId }: { courseId: string }) {
         if (!isActive) return
 
         setCourse(payload.course || null)
+
+        const notesResponse = await fetch(`/api/courses/${courseId}/notes`, { cache: "no-store" })
+        if (notesResponse.ok && isActive) {
+          const notesPayload = await notesResponse.json() as LinkedNote[]
+          setLinkedNotes(Array.isArray(notesPayload) ? notesPayload : [])
+        } else if (isActive) {
+          setLinkedNotes([])
+        }
+
         const nextModules = Array.isArray(payload.modules) ? payload.modules : []
         setModules(nextModules)
         setCompletedItems(new Set(
@@ -734,16 +777,24 @@ export function FolderView({ courseId }: { courseId: string }) {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <LinkedNoteCard
-                    label="Practical Lab"
-                    title="Lab 1 - Jupyter Testing"
-                    description="Quick setup notes for testing the course environment inside Jupyter or local notebooks."
-                  />
-                  <LinkedNoteCard
-                    label="Study Guide"
-                    title="Week 2 revision pack"
-                    description="Key terms, prompts, and references extracted from the current module list."
-                  />
+                  {linkedNotes.map((note) => (
+                    <LinkedNoteCard
+                      key={note.id}
+                      noteId={note.id}
+                      label={note.course_id === courseId ? "Course Note" : "Course Tag"}
+                      title={note.title || "Untitled note"}
+                      description={getNotePreview(note.content) || "Open this note to view its contents."}
+                    />
+                  ))}
+                  {linkedNotes.length === 0 && (
+                    <Card className="border-dashed border-muted/60 bg-transparent shadow-none">
+                      <CardContent className="flex h-full min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
+                        <FileText className="mb-3 h-10 w-10" />
+                        <p className="font-medium text-foreground">No linked notes yet</p>
+                        <p className="mt-1 text-sm">Bind a note tag to this course to show it here.</p>
+                      </CardContent>
+                    </Card>
+                  )}
                   <Card className="border-dashed border-muted/60 bg-transparent shadow-none">
                     <CardContent className="flex h-full min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
                       <GraduationCap className="mb-3 h-10 w-10" />

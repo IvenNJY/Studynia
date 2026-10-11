@@ -5,7 +5,6 @@ import { createClient } from '@/lib/server'
 import { ProfileCard } from '@/components/user-settings/profile-card'
 // import { WorkspaceAesthetic } from '@/components/user-settings/workspace-aesthetic'
 import { LmsIntegration } from '@/components/user-settings/lms-integration'
-import { NotificationArchitecture } from '@/components/user-settings/notification-architecture'
 import { PersonalInformation } from '@/components/user-settings/personal-information'
 
 export default async function SettingsPage() {
@@ -35,13 +34,9 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        {/* Middle Section */}
-        <NotificationArchitecture />
-
         {/* Bottom Section */}
         <PersonalInformation />
       </div>
     </div>
   )
 }
-

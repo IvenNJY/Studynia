@@ -240,6 +240,10 @@ function NavMainItem({
     );
   }
 
+  if (item.isSection && item.label) {
+    return <SidebarMenuSubItem className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><a href={item.href}>{item.label}</a></SidebarMenuSubItem>;
+  }
+
   return null;
 }
 
@@ -320,6 +324,18 @@ function NavMainSubItem({
           render={<a href={item.href}>{item.title}</a>}
         />
       </SidebarMenuSubItem>
+    );
+  }
+
+  if (item.isSection && item.label) {
+    return (
+    <SidebarMenuSubItem
+        className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+      >
+    <a href={item.href} className="block">
+    {item.label}
+    </a>
+    </SidebarMenuSubItem>
     );
   }
 
