@@ -492,7 +492,7 @@ export function FolderView({ courseId }: { courseId: string }) {
         if (!isActive) return
 
         setCourse(payload.course || null)
-<<<<<<< HEAD
+
         const notesResponse = await fetch(`/api/courses/${courseId}/notes`, { cache: "no-store" })
         if (notesResponse.ok && isActive) {
           const notesPayload = await notesResponse.json() as LinkedNote[]
@@ -500,8 +500,7 @@ export function FolderView({ courseId }: { courseId: string }) {
         } else if (isActive) {
           setLinkedNotes([])
         }
-=======
->>>>>>> 7189f2d4593ac26792b3287cdef5a6d4a9b91b1d
+
         const nextModules = Array.isArray(payload.modules) ? payload.modules : []
         setModules(nextModules)
         setCompletedItems(new Set(
