@@ -49,6 +49,25 @@ type QuizQuestion = {
   explanation?: string | null
 }
 
+type PastAssessment = {
+  id: string
+  title: string
+  created_at: string
+  test_type?: string | null
+  status?: "generating" | "ready" | "failed"
+}
+
+function getGenerationStatus(source: unknown): PastAssessment["status"] {
+  if (typeof source !== "string") return "ready"
+  try {
+    const parsed = JSON.parse(source) as { status?: string }
+    if (parsed.status === "generating" || parsed.status === "failed") return parsed.status
+  } catch {
+    // Older assessments store their source list as a JSON string.
+  }
+  return "ready"
+}
+
 // Helper to format dates like "2 days ago"
 function timeAgo(dateString: string) {
   const date = new Date(dateString)
@@ -73,7 +92,7 @@ export function PerformanceSidebar({
   // Data states
   const [recentAttempts, setRecentAttempts] = useState<Attempt[]>([])
   const [mistakes, setMistakes] = useState<Mistake[]>([])
-  const [assessments, setAssessments] = useState<Array<{ id: string; title: string; created_at: string; test_type?: string | null }>>([])
+  const [assessments, setAssessments] = useState<PastAssessment[]>([])
   const [stats, setStats] = useState({ avgScore: 0, totalTaken: 0 })
   const [mistakesByAttempt, setMistakesByAttempt] = useState<Record<string, AttemptMistake[]>>({})
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null)
@@ -191,7 +210,10 @@ export function PerformanceSidebar({
         setRecentAttempts(attempts)
         setMistakes(nextMistakes)
         setMistakesByAttempt(nextMistakesByAttempt)
-        setAssessments(data.assessments || []) 
+        setAssessments((data.assessments || []).map((assessment: PastAssessment & { source?: unknown }) => ({
+          ...assessment,
+          status: getGenerationStatus(assessment.source),
+        })))
         
         // Calculate Overview Stats
         const totalScores = attempts.reduce((sum, att) => sum + (att.score || 0), 0)
@@ -210,6 +232,29 @@ export function PerformanceSidebar({
 
     fetchPerformanceData()
   }, [sharedAttempts])
+
+  useEffect(() => {
+    let active = true
+    const refreshAssessments = async () => {
+      const response = await fetch("/api/assessments", { cache: "no-store" })
+      if (!response.ok) return
+      const rows = await response.json() as Array<PastAssessment & { source?: unknown }>
+      if (active) setAssessments(rows.map((assessment) => ({ ...assessment, status: getGenerationStatus(assessment.source) })))
+    }
+    const onGenerationStarted = (event: Event) => {
+      const assessment = (event as CustomEvent<PastAssessment>).detail
+      setAssessments((current) => [assessment, ...current.filter((item) => item.id !== assessment.id)])
+      void refreshAssessments()
+    }
+    void refreshAssessments()
+    const interval = window.setInterval(() => void refreshAssessments(), 5000)
+    window.addEventListener("assessment-generation-started", onGenerationStarted)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      window.removeEventListener("assessment-generation-started", onGenerationStarted)
+    }
+  }, [])
 
   // Handle Starting a Past Assessment
   const handleStartAssessment = async (assessmentId: string) => {
@@ -484,12 +529,13 @@ export function PerformanceSidebar({
                     <p className="line-clamp-2 text-sm font-semibold text-foreground">
                       {assessment.title}
                     </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {timeAgo(assessment.created_at)} · {assessment.test_type}
+                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {assessment.status === "generating" && <><Loader2 className="h-3 w-3 animate-spin" /> Generating</>}
+                      {assessment.status === "failed" && "Generation failed"}
+                      {(!assessment.status || assessment.status === "ready") && `${timeAgo(assessment.created_at)} · ${assessment.test_type || "Assessment"}`}
                     </p>
                   </div>
-                  
-                  <Button 
+                  {assessment.status === "generating" ? null : assessment.status === "failed" ? null : <Button
                     variant="outline" 
                     className="shrink-0 gap-1.5 px-3"
                     onClick={() => handleStartAssessment(assessment.id)}
@@ -501,7 +547,7 @@ export function PerformanceSidebar({
                       <Play className="h-3.5 w-3.5 fill-current" />
                     )}
                     Start
-                  </Button>
+                  </Button>}
                 </CardContent>
               </Card>
             ))

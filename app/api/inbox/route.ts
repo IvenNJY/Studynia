@@ -7,7 +7,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Auth session missing" }, { status: 401 })
   const { data, error } = await supabase
     .from("inbox_notifications")
-    .select("id, notification_type, note_id, attempt_id, title, body, read_at, created_at")
+    .select("id, notification_type, note_id, attempt_id, assessment_id, title, body, read_at, created_at")
     .eq("recipient_id", user.id)
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "Failed to load inbox" }, { status: 500 })

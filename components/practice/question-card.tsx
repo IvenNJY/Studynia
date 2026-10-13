@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { Sparkles, Download, Loader2, AlertCircle } from "lucide-react"
-import QuizPlayer from "./QuizPlayer"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,7 +23,6 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Toaster, toast } from "sonner"
-import { createClient } from "@/lib/client"
 
 // TODO: Make this dynamic based on user configuration
 const NUM_QUESTIONS = 5
@@ -35,17 +33,31 @@ const testTypes = ["Multiple Choice", "Flashcards", "Deep Dive"]
 
 interface Course {
   id: string
-  lms_external_id: string
+  lms_external_id?: string | null
   course_name: string
   course_code?: string
   term?: string
 }
 
 interface CanvasFile {
-  id: number
+  id: string | number
   display_name: string
   filename: string
   url: string
+  content_type?: string
+  created_at?: string
+  size?: number
+  source?: "lms" | "local"
+}
+
+interface ModuleMaterial {
+  id: string | number
+  material_id?: string
+  title?: string
+  name?: string
+  type?: string
+  url?: string
+  html_url?: string
   content_type?: string
   created_at?: string
   size?: number
@@ -62,8 +74,6 @@ export function GenerateTestCard() {
   const [isFilesDialogOpen, setIsFilesDialogOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedTestType, setSelectedTestType] = useState(0)
-  const [activeQuiz, setActiveQuiz] = useState<any[] | null>(null)
-  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false);
   const [error, setError] = useState<string | null>(null)
 
@@ -78,17 +88,21 @@ export function GenerateTestCard() {
         setLoadingCourses(true)
         setError(null)
 
-        const response = await fetch("/api/lms/sync", { method: "POST" })
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch courses")
+        const localResponse = await fetch("/api/courses", { cache: "no-store" })
+        if (!localResponse.ok) throw new Error("Failed to load courses")
+        const localCourses = await localResponse.json() as Array<Course & { description?: string }>
+        let syncedCourses = localCourses
+        try {
+          const syncResponse = await fetch("/api/lms/sync", { method: "POST" })
+          if (syncResponse.ok) {
+            const data = await syncResponse.json() as { courses?: Array<Course & { description?: string }> } | Array<Course & { description?: string }>
+            syncedCourses = Array.isArray(data) ? data : data.courses ?? localCourses
+          }
+        } catch {
+          // Keep saved local courses available when the LMS cannot be reached.
         }
-        
-        const text = await response.text()
-        const data = JSON.parse(text) as { courses?: Array<Course & { description?: string }> } | Array<Course & { description?: string }>
-        const syncedCourses: Array<Course & { description?: string }> = Array.isArray(data) ? data : data.courses ?? []
         setCourses(
-          syncedCourses.map((course) => ({
+          Array.from(new Map(syncedCourses.map((course) => [course.id, course])).values()).map((course) => ({
             ...course,
             term: course.term || course.description || "Unknown",
           }))
@@ -131,42 +145,51 @@ export function GenerateTestCard() {
       setError(null)
       setAvailableFiles([])
 
-      // Fetch Canvas files for the course
-      const response = await fetch(`/api/lms/modules/${course.id}`, { cache: "no-store" })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch course files")
-      }
-
-      const data = await response.json()
+      const [response, materialsResponse] = await Promise.all([
+        fetch(`/api/lms/modules/${course.id}`, { cache: "no-store" }),
+        fetch(`/api/materials?course_id=${encodeURIComponent(course.id)}`, { cache: "no-store" }),
+      ])
+      const data = response.ok
+        ? await response.json() as { modules?: Array<{ items?: ModuleMaterial[] }> }
+        : { modules: [] }
+      const materials = materialsResponse.ok
+        ? await materialsResponse.json() as Array<{ id: string; title: string; file_url: string | null; content_type: string | null; source?: string }>
+        : []
 
       // Extract files from modules/items
       const files: CanvasFile[] = []
       if (data.modules) {
-        data.modules.forEach((module: any) => {
+        data.modules.forEach((module) => {
           if (module.items) {
-            module.items.forEach((item: any) => {
+            module.items.forEach((item) => {
               // Filter for document types (PDF, PowerPoint, Word, etc.)
-              if (
-                item.type === "File" 
-                // &&
-                // (item.content_type?.includes("pdf") ||
-                //   item.content_type?.includes("powerpoint") ||
-                //   item.content_type?.includes("word") ||
-                //   item.content_type?.includes("document"))
-              ) {
+              if (item.type === "File" || item.material_id) {
                 files.push({
-                  id: item.id,
+                  id: item.material_id || item.id,
                   display_name: item.title || item.name || "Untitled",
                   filename: item.title || item.name || "Untitled",
                   url: item.url || item.html_url || "",
                   content_type: item.content_type,
                   created_at: item.created_at,
                   size: item.size,
+                  source: item.type === "File" ? "lms" : "local",
                 })
               }
             })
           }
+        })
+      }
+
+      const listedMaterialIds = new Set(files.map((file) => String(file.id)))
+      for (const material of materials) {
+        if (!material.file_url || listedMaterialIds.has(material.id) || material.content_type === "deadline") continue
+        files.push({
+          id: material.id,
+          display_name: material.title,
+          filename: material.title,
+          url: material.file_url,
+          content_type: material.content_type || undefined,
+          source: "local",
         })
       }
 
@@ -221,19 +244,22 @@ export function GenerateTestCard() {
       setError(null)
 
       const payload = {
+        course_id: selectedCourse.id,
+        title: `Assessment for ${selectedCourse.course_name}`,
         num_questions: NUM_QUESTIONS,
         // TODO: Support customization of num_questions
         // num_questions: customNumQuestions,
 
         // Instantly transform the Canvas API URLs into download links
-        files: selectedFiles.map(f => {
-          const domain = new URL(f.url).hostname;
-          const fileId = f.url.split('/').pop();
-          
-          return {
-            filename: f.display_name || f.filename || "lecture.pdf", // Ensure you pass a filename!
-            url: `https://${domain}/files/${fileId}/download?download_frd=1`
-          };
+        files: selectedFiles.map((file) => {
+          const url = new URL(file.url)
+          const canvasFile = file.source !== "local" && url.pathname.includes("/files/")
+          if (canvasFile) {
+            const fileId = url.pathname.match(/\/files\/(\d+)/)?.[1]
+            if (fileId) url.pathname = `/files/${fileId}/download`
+            url.search = "?download_frd=1"
+          }
+          return { filename: file.display_name || file.filename || "course-material", url: url.toString() }
         }),
 
         // files: selectedFiles.map((f) => ({
@@ -250,55 +276,27 @@ export function GenerateTestCard() {
       // TODO: Replace with actual API endpoint for quiz generation
       // Inside GenerateTestCard.tsx -> handleGenerateAssessment
 
-const response = await fetch("/api/assessments/generate", {
+      const response = await fetch("/api/assessments/generate", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(payload),
 })
 
-if (!response.ok) {
-  throw new Error("Failed to generate assessment")
-}
-
-const result = await response.json()
-
-// --- NEW: Save to Supabase before showing the quiz ---
-// Note: You'll need to pull the actual logged-in user's UUID from your auth state
-const supabase = createClient();
-const { data: { session } } = await supabase.auth.getSession()
-const userId = session?.user?.id
-
-const dbResponse = await fetch("/api/assessments", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    userId,
-    courseId: selectedCourse.id,
-    title: `Assessment for ${selectedCourse.course_name}`,
-    testType: testTypes[selectedTestType],
-    sourceList: result.source_list,
-    quiz: result.quiz
-  })
-})
-
-if (!dbResponse.ok) {
-  throw new Error("Assessment generated, but failed to save to database.")
-}
-
-const dbData = await dbResponse.json()
-toast.success("Assessment generated and saved successfully!")
-
-// Pass the assessmentId to the QuizPlayer so it can log attempts later
-setActiveQuiz({ 
-  ...result, 
-  assessmentId: dbData.assessmentId 
-})
-setIsQuizModalOpen(true)
-      // TODO: Navigate to assessment results or display quiz
-      setActiveQuiz(result.quiz)
-      if (activeQuiz) {
-        return <QuizPlayer quiz={activeQuiz} onReset={() => setActiveQuiz(null)} />
+      if (!response.ok) {
+        const failure = await response.json() as { error?: string; details?: string }
+        throw new Error(failure.details || failure.error || "Failed to start assessment generation")
       }
+
+      const started = await response.json() as { assessmentId: string; status: "generating" }
+      window.dispatchEvent(new CustomEvent("assessment-generation-started", {
+        detail: {
+          id: started.assessmentId,
+          title: payload.title,
+          created_at: new Date().toISOString(),
+          status: "generating",
+        },
+      }))
+      toast.success("Assessment generation started. You can leave Practice; we’ll notify your inbox when it’s ready.")
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to generate assessment"
       setError(errorMsg)
@@ -317,7 +315,7 @@ setIsQuizModalOpen(true)
           </div>
           <CardTitle className="text-xl">Generate New Test</CardTitle>
           <p className="text-sm text-muted-foreground">
-            AI-driven assessment tailored to your curriculum.
+            AI-driven assessment tailored to your curriculum. You can switch tabs while it generates; it will be saved when ready.
           </p>
         </CardHeader>
 
@@ -519,24 +517,6 @@ setIsQuizModalOpen(true)
           </Button>``
         </CardContent>
       </Card>
-
-      <Dialog 
-        open={!!activeQuiz} 
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setActiveQuiz(null);
-        }}
-      >
-        {/* We use max-w-4xl for a nice wide quiz, and max-h screen with overflow for scrolling */}
-        <DialogContent className="max-w-[95vw] md:max-w-5xl lg:max-w-6xl max-h-[90vh] h-[90vh] overflow-y-auto p-0 border-none bg-white shadow-none">
-          {/* We only render the QuizPlayer if activeQuiz is not null */}
-          {activeQuiz && (
-            <QuizPlayer 
-              quiz={activeQuiz} 
-              onReset={() => setActiveQuiz(null)} 
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Toaster />
     </>

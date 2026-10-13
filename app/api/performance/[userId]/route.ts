@@ -55,7 +55,7 @@ export async function GET(
     // 3. Fetch created assessments
     const { data: assessmentsData, error: assessmentsError } = await supabase
       .from("assessments")
-      .select("id, title, created_at")
+      .select("id, title, created_at, source")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(5)

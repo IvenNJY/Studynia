@@ -16,6 +16,10 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Background assessment generation
+
+The worker saves generated questions, assessment status, and the completion notification directly to Supabase. Configure `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as private environment variables on the worker service. The frontend reads assessment status from the database, so the app does not need a public callback URL and generation can finish while the user is on another page. Keep the service role key on the server and worker only; never expose it to browser code.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

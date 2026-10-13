@@ -10,6 +10,21 @@ type GeneratedQuestion = {
   source_id?: number | null
 }
 
+export async function GET() {
+  const supabase = await createServerClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return NextResponse.json({ error: "Auth session missing" }, { status: 401 })
+
+  const { data, error } = await supabase
+    .from("assessments")
+    .select("id, title, created_at, source")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20)
+  if (error) return NextResponse.json({ error: "Failed to load assessments" }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
 // Initialize Supabase client (ensure you use your actual env variables or SSR client)
 export async function POST(req: Request) {
   try {
