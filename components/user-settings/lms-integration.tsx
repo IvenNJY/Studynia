@@ -87,7 +87,7 @@ export function LmsIntegration() {
   }
 
   return (
-    <Card className="border-0 shadow-sm bg-card overflow-hidden">
+    <Card className="border-0 shadow-sm bg-card overflow-hidden h-full">
       <CardHeader className="flex flex-row items-start justify-between pb-6">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-primary/10 rounded-xl">
@@ -171,7 +171,7 @@ export function LmsIntegration() {
             </div>
           </div>
         ) : (
-          <div className="bg-muted/50 p-6 rounded-xl flex items-center justify-between">
+          <div className="bg-muted/100 p-6 rounded-xl flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <p className="text-sm font-semibold text-foreground">Last successful sync</p>

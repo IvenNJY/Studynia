@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 
-import { LogoutButton } from '@/components/logout-button'
 import { createClient } from '@/lib/server'
 import { ProfileCard } from '@/components/user-settings/profile-card'
 // import { WorkspaceAesthetic } from '@/components/user-settings/workspace-aesthetic'
@@ -14,6 +13,21 @@ export default async function SettingsPage() {
   if (error || !data?.claims) {
     redirect('/auth/login')
   }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, institution_name, avatar_url')
+    .eq('id', user.id)
+    .maybeSingle()
+  const fullName = profile?.full_name || (typeof user.user_metadata.full_name === 'string' ? user.user_metadata.full_name : '')
+  const metadataAvatar = typeof user.user_metadata.avatar_url === 'string'
+    ? user.user_metadata.avatar_url
+    : typeof user.user_metadata.picture === 'string'
+      ? user.user_metadata.picture
+      : null
 
   return (
     <div className="min-h-screen w-full bg-background p-4 md:p-8 lg:p-12">
@@ -29,13 +43,16 @@ export default async function SettingsPage() {
           </div>
           
           <div className="space-y-8">
-            <ProfileCard />
+            <ProfileCard fullName={fullName} avatarUrl={profile?.avatar_url || metadataAvatar} />
             {/* <WorkspaceAesthetic /> */}
           </div>
         </div>
 
         {/* Bottom Section */}
-        <PersonalInformation />
+        <PersonalInformation
+          fullName={fullName}
+          institutionName={profile?.institution_name || ''}
+        />
       </div>
     </div>
   )

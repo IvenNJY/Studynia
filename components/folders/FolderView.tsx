@@ -426,10 +426,6 @@ function CourseSidebar({
               <p className="text-sm text-muted-foreground">Lecturer</p>
             </div>
           </div>
-
-          <Button variant="outline" className="w-full">
-            Message Lecturer
-          </Button>
         </CardContent>
       </Card>
     </aside>
