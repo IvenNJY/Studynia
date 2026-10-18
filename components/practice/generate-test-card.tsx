@@ -507,7 +507,7 @@ toast.success("Assessment generated and saved successfully!")
                 Generate AI Assessment
               </>
             )}
-          </Button>``
+          </Button>
         </CardContent>
       </Card>
 

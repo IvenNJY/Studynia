@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Lightbulb, Target, TrendingUp, Clock, AlertTriangle, CheckCircle2, XCircle, Loader2, FileText, Play, Share2, Trash2 } from "lucide-react"
+import { Lightbulb, Target, TrendingUp, Clock, AlertTriangle, CheckCircle2, XCircle, Loader2, FileText, Play, Share2, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,24 +21,24 @@ type Attempt = {
   id: string
   score: number
   created_at: string
-  assessments?: { title?: string | null; difficulty_level?: string | null } | null
+  assessments?: { title?: string | null; difficulty_level?: string | null; course_id?: string | null } | null
 }
 
 type SharedAttempt = Attempt
-
-type Mistake = {
-  assessment_questions?: {
-    question_text?: string | null
-    correct_answer?: string | null
-  } | null
-  user_answer?: unknown
-}
 
 type AttemptMistake = {
   question: string
   topic: string | null
   userAnswer: string
   correctAnswer: string
+  explanation: string | null
+  options?: unknown
+}
+
+function formatAnswerChoice(answer: string, options: unknown) {
+  if (!options || typeof options !== "object" || !(answer in options)) return answer
+  const optionText = (options as Record<string, unknown>)[answer]
+  return typeof optionText === "string" ? `${answer}. ${optionText}` : answer
 }
 
 type QuizQuestion = {
@@ -54,8 +54,13 @@ type PastAssessment = {
   title: string
   created_at: string
   test_type?: string | null
+  course_id?: string | null
   status?: "generating" | "ready" | "failed"
 }
+
+type CourseOption = { id: string; course_name: string; course_code?: string | null }
+
+const ITEMS_PER_PAGE = 3
 
 function getGenerationStatus(source: unknown): PastAssessment["status"] {
   if (typeof source !== "string") return "ready"
@@ -91,8 +96,12 @@ export function PerformanceSidebar({
   
   // Data states
   const [recentAttempts, setRecentAttempts] = useState<Attempt[]>([])
-  const [mistakes, setMistakes] = useState<Mistake[]>([])
   const [assessments, setAssessments] = useState<PastAssessment[]>([])
+  const [courses, setCourses] = useState<CourseOption[]>([])
+  const [attemptSearch, setAttemptSearch] = useState("")
+  const [attemptCourseId, setAttemptCourseId] = useState("all")
+  const [attemptPage, setAttemptPage] = useState(1)
+  const [assessmentPage, setAssessmentPage] = useState(1)
   const [stats, setStats] = useState({ avgScore: 0, totalTaken: 0 })
   const [mistakesByAttempt, setMistakesByAttempt] = useState<Record<string, AttemptMistake[]>>({})
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null)
@@ -170,7 +179,6 @@ export function PerformanceSidebar({
         const data = await response.json()
         
         let attempts: Attempt[] = data.attempts || []
-        let nextMistakes: Mistake[] = data.mistakes || []
         let nextMistakesByAttempt: Record<string, AttemptMistake[]> = data.mistakesByAttempt || {}
 
         if (sharedAttempts?.length) {
@@ -182,18 +190,11 @@ export function PerformanceSidebar({
               answers: Array<{
                 user_answer?: unknown
                 is_correct?: boolean
-                assessment_questions?: { question_text?: string | null; correct_answer?: string | null; topic?: string | null } | null
+                assessment_questions?: { question_text?: string | null; correct_answer?: string | null; options?: unknown; explanation?: string | null; topic?: string | null } | null
               }>
             }>
           }))
           attempts = sharedDetails.map((detail) => detail.attempt)
-          nextMistakes = sharedDetails.flatMap((detail) => detail.answers.filter((answer) => !answer.is_correct).map((answer) => ({
-            user_answer: answer.user_answer,
-            assessment_questions: answer.assessment_questions ? {
-              question_text: answer.assessment_questions.question_text || null,
-              correct_answer: answer.assessment_questions.correct_answer || null,
-            } : null,
-          })))
           nextMistakesByAttempt = Object.fromEntries(sharedDetails.map((detail) => [
             detail.attempt.id,
             detail.answers.filter((answer) => !answer.is_correct).map((answer) => ({
@@ -203,12 +204,13 @@ export function PerformanceSidebar({
                 ? String((answer.user_answer as { value?: unknown }).value)
                 : "Unknown",
               correctAnswer: answer.assessment_questions?.correct_answer || "Unavailable",
+              explanation: answer.assessment_questions?.explanation || null,
+              options: answer.assessment_questions?.options,
             })),
           ]))
         }
 
         setRecentAttempts(attempts)
-        setMistakes(nextMistakes)
         setMistakesByAttempt(nextMistakesByAttempt)
         setAssessments((data.assessments || []).map((assessment: PastAssessment & { source?: unknown }) => ({
           ...assessment,
@@ -232,6 +234,15 @@ export function PerformanceSidebar({
 
     fetchPerformanceData()
   }, [sharedAttempts])
+
+  useEffect(() => {
+    let active = true
+    void fetch("/api/courses", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<CourseOption[]> : [])
+      .then((rows) => { if (active) setCourses(rows) })
+      .catch((error) => console.error("Failed to load courses for analytics filters:", error))
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -300,6 +311,23 @@ export function PerformanceSidebar({
     areas[area] = (areas[area] || 0) + 1
     return areas
   }, {})
+  const filteredAttempts = recentAttempts.filter((attempt) => {
+    const title = attempt.assessments?.title || "Unknown Assessment"
+    const courseId = attempt.assessments?.course_id || ""
+    const course = courses.find((item) => item.id === courseId)
+    const searchText = `${title} ${course?.course_name || ""} ${course?.course_code || ""} ${new Date(attempt.created_at).toLocaleDateString()}`.toLowerCase()
+    return (attemptCourseId === "all" || courseId === attemptCourseId) && searchText.includes(attemptSearch.trim().toLowerCase())
+  })
+  const attemptPageCount = Math.max(1, Math.ceil(filteredAttempts.length / ITEMS_PER_PAGE))
+  const currentAttemptPage = Math.min(attemptPage, attemptPageCount)
+  const paginatedAttempts = filteredAttempts.slice((currentAttemptPage - 1) * ITEMS_PER_PAGE, currentAttemptPage * ITEMS_PER_PAGE)
+  const assessmentPageCount = Math.max(1, Math.ceil(assessments.length / ITEMS_PER_PAGE))
+  const currentAssessmentPage = Math.min(assessmentPage, assessmentPageCount)
+  const paginatedAssessments = assessments.slice((currentAssessmentPage - 1) * ITEMS_PER_PAGE, currentAssessmentPage * ITEMS_PER_PAGE)
+  const attemptCourseOptions = [...new Set(recentAttempts.map((attempt) => attempt.assessments?.course_id).filter((courseId): courseId is string => Boolean(courseId)))].map((courseId, index) => ({
+    id: courseId,
+    label: courses.find((course) => course.id === courseId)?.course_name || `Course ${index + 1}`,
+  }))
 
   return (
     <div className="space-y-6">
@@ -349,28 +377,32 @@ export function PerformanceSidebar({
                   </div>
                 ) : activeTab === "overview" ? (
                   <div className="space-y-8">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {recentAttempts.map((attempt) => (
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="relative min-w-0 flex-1">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <input value={attemptSearch} onChange={(event) => { setAttemptSearch(event.target.value); setAttemptPage(1) }} placeholder="Search attempts by title or date" className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40" />
+                        </div>
+                        <Select value={attemptCourseId} onValueChange={(value) => { if (value) { setAttemptCourseId(value); setAttemptPage(1) } }}>
+                          <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Filter by course" /></SelectTrigger>
+                          <SelectContent><SelectItem value="all">All courses</SelectItem>{attemptCourseOptions.map((course) => <SelectItem key={course.id} value={course.id}>{course.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      {filteredAttempts.length === 0 ? <p className="rounded-lg border p-4 text-sm text-muted-foreground">No attempts match this search and course filter.</p> : <div className="grid gap-3 sm:grid-cols-2">
+                      {paginatedAttempts.map((attempt) => (
                         <button key={attempt.id} onClick={() => setSelectedAttemptId(attempt.id)} className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted ${selectedAttempt?.id === attempt.id ? "border-primary bg-primary/5" : ""}`}>
                           <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{attempt.assessments?.title || "Unknown Assessment"}</span><span className="font-bold text-primary">{attempt.score}%</span></div>
                           <p className="mt-1 text-xs text-muted-foreground">{new Date(attempt.created_at).toLocaleDateString()}</p>
                         </button>
                       ))}
+                      </div>}
+                      {filteredAttempts.length > 0 && <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs text-muted-foreground">{filteredAttempts.length} attempt{filteredAttempts.length === 1 ? "" : "s"} · Page {currentAttemptPage} of {attemptPageCount}</p>
+                        <div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentAttemptPage <= 1} onClick={() => setAttemptPage((page) => Math.max(1, page - 1))}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={currentAttemptPage >= attemptPageCount} onClick={() => setAttemptPage((page) => Math.min(attemptPageCount, page + 1))}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div>
+                      </div>}
                     </div>
                     {selectedAttempt && <Card className="border-primary/20 bg-primary/5"><CardContent className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected performance</p><h3 className="mt-1 text-lg font-bold">{selectedAttempt.assessments?.title || "Unknown Assessment"}</h3></div><div className="text-3xl font-bold text-primary">{selectedAttempt.score}%</div></div><p className="mt-2 text-sm text-muted-foreground">{selectedAttemptMistakes.length ? `${selectedAttemptMistakes.length} incorrect answer${selectedAttemptMistakes.length === 1 ? "" : "s"} identified below.` : "No weak areas found for this attempt."}</p></CardContent></Card>}
                     {selectedAttempt && <div className="space-y-3"><h3 className="text-lg font-semibold">Highlighted weak areas</h3>{Object.keys(selectedWeakAreas).length === 0 ? <p className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">Excellent work. This attempt has no recorded incorrect answers.</p> : <div className="flex flex-wrap gap-2">{Object.entries(selectedWeakAreas).map(([area, count]) => <Badge key={area} variant="destructive">{area} · {count} incorrect</Badge>)}</div>}</div>}
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Select Course</p>
-                      <Select defaultValue="all">
-                        <SelectTrigger className="rounded-md border-border bg-muted/35 text-sm" >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Courses</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
                     {/* Top Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Card className="border-border/50 shadow-sm"><CardContent className="p-5"><div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Average Score</div><div className="text-4xl font-bold text-foreground">{stats.avgScore}%</div></CardContent></Card>
@@ -423,32 +455,39 @@ export function PerformanceSidebar({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Review your mistakes</h3>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold">Review your mistakes</h3>
+                        <p className="text-sm text-muted-foreground">{selectedAttempt ? `${selectedAttempt.assessments?.title || "Unknown Assessment"} · ${new Date(selectedAttempt.created_at).toLocaleDateString()}` : "Select an attempt to review its answers."}</p>
+                      </div>
+                      {recentAttempts.length > 0 && <Select value={selectedAttempt?.id || ""} onValueChange={(value) => value && setSelectedAttemptId(value)}>
+                        <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select an attempt" /></SelectTrigger>
+                        <SelectContent>{recentAttempts.map((attempt) => <SelectItem key={attempt.id} value={attempt.id}>{attempt.assessments?.title || "Unknown Assessment"} · {new Date(attempt.created_at).toLocaleDateString()}</SelectItem>)}</SelectContent>
+                      </Select>}
+                    </div>
                     <div className="space-y-4">
-                      {mistakes.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">No mistakes recorded yet! Great job.</p>
+                      {!selectedAttempt ? (
+                        <p className="text-muted-foreground text-sm">No attempt selected.</p>
+                      ) : selectedAttemptMistakes.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No mistakes recorded for this attempt. Great job!</p>
                       ) : (
-                        mistakes.map((item, idx) => {
-                          const question = item.assessment_questions?.question_text
-                          const correctAns = item.assessment_questions?.correct_answer
-                          const userAnsObj = item.user_answer as { value?: string }
-                          const userAnsText = userAnsObj?.value || "Unknown"
-
+                        selectedAttemptMistakes.map((item, idx) => {
                           return (
                             <div key={idx} className="p-5 rounded-xl border border-border/60 bg-card shadow-sm">
                               <div className="flex items-start gap-3 mb-4">
                                 <XCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-                                <p className="font-medium text-foreground leading-snug">{question}</p>
+                                <p className="font-medium text-foreground leading-snug">{item.question}</p>
                               </div>
                               <div className="ml-8 space-y-3">
                                 <div className="p-3 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
                                   <span className="font-bold uppercase tracking-wider text-[10px] block mb-1 opacity-80">Your Answer</span>
-                                  <span className="font-medium">{userAnsText}</span>
+                                  <span className="font-medium">{formatAnswerChoice(item.userAnswer, item.options)}</span>
                                 </div>
                                 <div className="p-3 rounded-md text-sm bg-primary/10 border border-primary/20">
                                   <span className="font-bold uppercase tracking-wider text-[10px] text-primary block mb-1">Correct Answer</span>
-                                  <span className="font-medium text-foreground">{correctAns}</span>
+                                  <span className="font-medium text-foreground">{formatAnswerChoice(item.correctAnswer || "Unavailable", item.options)}</span>
                                 </div>
+                                <div className="p-3 rounded-md text-sm bg-muted/60 border border-border/60"><span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground block mb-1">Explanation</span><p className="text-foreground">{item.explanation || "No explanation was saved for this question."}</p></div>
                               </div>
                             </div>
                           )
@@ -518,7 +557,7 @@ export function PerformanceSidebar({
               You haven&apos;t generated any assessments yet. Select a course and generate one to get started!
             </p>
           ) : (
-            assessments.map((assessment) => (
+            paginatedAssessments.map((assessment) => (
               <Card key={assessment.id} className="border-border/60 bg-card">
                 <CardContent className="flex items-center gap-3 p-3">
                   <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -552,6 +591,10 @@ export function PerformanceSidebar({
               </Card>
             ))
           )}
+          {!loading && assessments.length > ITEMS_PER_PAGE && <div className="flex items-center justify-between gap-3 pt-1">
+            <p className="text-xs text-muted-foreground">{assessments.length} assessments · Page {currentAssessmentPage} of {assessmentPageCount}</p>
+            <div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentAssessmentPage <= 1} onClick={() => setAssessmentPage((page) => Math.max(1, page - 1))}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={currentAssessmentPage >= assessmentPageCount} onClick={() => setAssessmentPage((page) => Math.min(assessmentPageCount, page + 1))}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div>
+          </div>}
         </div>
       </div>}
 
