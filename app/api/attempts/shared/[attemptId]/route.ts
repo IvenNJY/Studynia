@@ -19,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ att
 
   const { data: attempt, error: attemptError } = await admin
     .from("assessment_attempts")
-    .select("id, user_id, score, total_questions, correct_answers, completed_at, created_at, assessments(title)")
+    .select("id, user_id, score, total_questions, correct_answers, completed_at, created_at, assessments(title, course_id)")
     .eq("id", attemptId)
     .eq("status", "completed")
     .maybeSingle()
@@ -28,8 +28,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ att
 
   const { data: answers, error: answersError } = await admin
     .from("attempt_answers")
-    .select("id, user_answer, is_correct, assessment_questions(question_text, correct_answer, topic)")
+    .select("id, question_id, user_answer, is_correct")
     .eq("attempt_id", attemptId)
   if (answersError) return NextResponse.json({ error: "Failed to load assessment answers" }, { status: 500 })
-  return NextResponse.json({ attempt, answers: answers ?? [] })
+
+  const questionIds = [...new Set((answers ?? []).map((answer) => answer.question_id).filter(Boolean))]
+  const { data: questions, error: questionsError } = questionIds.length
+    ? await admin
+      .from("assessment_questions")
+      .select("id, question_text, correct_answer, options, explanation, topic")
+      .in("id", questionIds)
+    : { data: [], error: null }
+  if (questionsError) return NextResponse.json({ error: "Failed to load assessment questions" }, { status: 500 })
+
+  const questionsById = new Map((questions ?? []).map((question) => [question.id, question]))
+  const answersWithQuestions = (answers ?? []).map((answer) => ({
+    ...answer,
+    assessment_questions: questionsById.get(answer.question_id) ?? null,
+  }))
+  return NextResponse.json({ attempt, answers: answersWithQuestions })
 }

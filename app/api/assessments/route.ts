@@ -17,10 +17,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("assessments")
-    .select("id, title, created_at, source")
+    .select("id, title, created_at, source, course_id")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(20)
   if (error) return NextResponse.json({ error: "Failed to load assessments" }, { status: 500 })
   return NextResponse.json(data ?? [])
 }

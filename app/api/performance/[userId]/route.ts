@@ -7,13 +7,18 @@ const supabase = createClient(
 )
 
 type Mistake = {
+  question_id: string
   user_answer: unknown
-  assessment_questions: {
-    question_text: string | null
-    correct_answer: string | null
-    topic: string | null
-  } | null
   assessment_attempts: { id: string } | null
+}
+
+type AssessmentQuestion = {
+  id: string
+  question_text: string | null
+  correct_answer: string | null
+  options: unknown
+  explanation: string | null
+  topic: string | null
 }
 
 // Add the context parameter to access dynamic route params
@@ -31,7 +36,7 @@ export async function GET(
     // 1. Fetch recent attempts
     const { data: attemptsData, error: attemptsError } = await supabase
       .from("assessment_attempts")
-      .select(`id, score, created_at, assessments ( title, difficulty_level )`)
+      .select(`id, score, created_at, assessments ( title, difficulty_level, course_id )`)
       .eq("user_id", userId)
       .eq("status", "completed")
       .order("created_at", { ascending: false })
@@ -42,8 +47,7 @@ export async function GET(
     const { data: mistakesData, error: mistakesError } = await supabase
       .from("attempt_answers")
       .select(`
-        is_correct, user_answer,
-        assessment_questions ( question_text, correct_answer, options, topic ),
+        question_id, is_correct, user_answer,
         assessment_attempts!inner ( id, user_id )
       `)
       .eq("assessment_attempts.user_id", userId)
@@ -52,13 +56,23 @@ export async function GET(
 
     if (mistakesError) throw mistakesError
 
+    const questionIds = [...new Set(((mistakesData ?? []) as unknown as Mistake[]).map((item) => item.question_id))]
+    const { data: questionRows, error: questionsError } = questionIds.length
+      ? await supabase
+        .from("assessment_questions")
+        .select("id, question_text, correct_answer, options, explanation, topic")
+        .in("id", questionIds)
+      : { data: [], error: null }
+
+    if (questionsError) throw questionsError
+    const questionsById = new Map(((questionRows ?? []) as AssessmentQuestion[]).map((question) => [question.id, question]))
+
     // 3. Fetch created assessments
     const { data: assessmentsData, error: assessmentsError } = await supabase
       .from("assessments")
       .select("id, title, created_at, source")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(5)
 
     if (assessmentsError) throw assessmentsError
 
@@ -67,6 +81,8 @@ export async function GET(
       topic: string | null
       userAnswer: string
       correctAnswer: string
+      explanation: string | null
+      options: unknown
     }>>>((grouped, item) => {
       const attemptId = item.assessment_attempts?.id
       if (!attemptId) return grouped
@@ -74,19 +90,26 @@ export async function GET(
       const userAnswer = answer && typeof answer === "object" && "value" in answer
         ? String((answer as { value?: unknown }).value)
         : "Unknown"
-      const question = item.assessment_questions
+      const question = questionsById.get(item.question_id)
       ;(grouped[attemptId] ??= []).push({
         question: question?.question_text || "Question unavailable",
         topic: question?.topic || null,
         userAnswer,
         correctAnswer: question?.correct_answer || "Unavailable",
+        explanation: question?.explanation || null,
+        options: question?.options,
       })
       return grouped
     }, {})
 
+    const mistakesWithQuestions = ((mistakesData ?? []) as unknown as Mistake[]).map((item) => ({
+      ...item,
+      assessment_questions: questionsById.get(item.question_id) ?? null,
+    }))
+
     return NextResponse.json({
       attempts: attemptsData || [], 
-      mistakes: mistakesData || [],
+      mistakes: mistakesWithQuestions,
       assessments: assessmentsData || [],
       mistakesByAttempt,
     })

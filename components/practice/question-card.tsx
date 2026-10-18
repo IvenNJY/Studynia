@@ -29,7 +29,7 @@ const NUM_QUESTIONS = 5
 // Future implementation: Allow users to set custom num_questions
 // const [customNumQuestions, setCustomNumQuestions] = useState(5)
 
-const testTypes = ["Multiple Choice", "Flashcards", "Deep Dive"]
+const testTypes = ["Multiple Choice"]
 
 interface Course {
   id: string
@@ -460,7 +460,7 @@ export function GenerateTestCard() {
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Test Type
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid">
               {testTypes.map((type, index) => (
                 <Button
                   key={type}
@@ -514,7 +514,7 @@ export function GenerateTestCard() {
                 Generate AI Assessment
               </>
             )}
-          </Button>``
+          </Button>
         </CardContent>
       </Card>
 
