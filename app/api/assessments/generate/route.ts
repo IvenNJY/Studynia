@@ -17,6 +17,13 @@ type GenerateAssessmentRequest = {
 }
 
 const WORKER_URL = (process.env.ASSESSMENT_WORKER_URL || "https://studynia-worker.onrender.com").replace(/\/+$/, "")
+const MAX_QUESTIONS = 15
+const DEFAULT_QUESTIONS = 5
+
+function boundedQuestionCount(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_QUESTIONS
+	return Math.min(MAX_QUESTIONS, Math.max(1, Math.floor(value)))
+}
 
 export async function POST(request: Request) {
 	try {
@@ -79,7 +86,7 @@ export async function POST(request: Request) {
 					assessment_id: assessment.id,
 					job_id: jobId,
 					...(accessToken ? { canvas_token: accessToken } : {}),
-					num_questions: body.num_questions ?? 5,
+					num_questions: boundedQuestionCount(body.num_questions),
 					files: body.files,
 				}),
 			})

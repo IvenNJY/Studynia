@@ -8,13 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-type User = { id: string; name: string; role: string }
+type User = { id: string; name: string }
 type Conversation = { id: string; otherUser: User; latestMessage: Message | null; unread: boolean }
 type Message = { id: string; sender_id: string; body: string; attempt_id: string | null; created_at: string }
 type AttemptAnswer = { id: string; user_answer: unknown; is_correct: boolean; assessment_questions: { question_text: string | null; correct_answer: string | null; topic: string | null } | null }
 type AttemptDetails = { id: string; score: number; total_questions: number; correct_answers: number; completed_at: string | null; created_at: string; assessments: { title: string | null } | null; answers: AttemptAnswer[] }
 
-function roleLabel(role: string) { return role.charAt(0).toUpperCase() + role.slice(1) }
 function formatTime(value: string) { return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) }
 
 export function ChatPage({ initialConversationId, initialAttemptId }: { initialConversationId?: string; initialAttemptId?: string }) {
@@ -74,6 +73,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
     const data = await response.json()
     await loadConversations()
     setSelectedId(data.conversationId)
+    setSearch("")
   }
 
   async function sendMessage(event: React.FormEvent) {
@@ -119,16 +119,30 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
   return (
     <div className="grid w-full max-w-full gap-6 lg:grid-cols-[1fr_2fr]">
       <Card className="h-fit">
-        <CardHeader><CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" /> Chat</CardTitle><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a user" /></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" /> Chat</CardTitle>
+          <div className="relative">
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a user" />
+            {search.trim() && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                {filteredUsers.length ? filteredUsers.map((user) => (
+                  <button key={user.id} onClick={() => void startConversation(user.id)} className="flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm hover:bg-muted">
+                    <UserRound className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate">{user.name}</span>
+                  </button>
+                )) : <p className="px-2 py-2 text-sm text-muted-foreground">No users found.</p>}
+              </div>
+            )}
+          </div>
+        </CardHeader>
         <CardContent className="space-y-1">
           {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-muted ${selectedId === conversation.id ? "bg-muted" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{conversation.otherUser.name}</span>{conversation.unread && <span className="h-2 w-2 rounded-full bg-primary" />}</div><p className="truncate text-xs text-muted-foreground">{conversation.latestMessage?.body || "No messages yet"}</p></button>)}
-          <div className="border-t pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Start a conversation</p>{filteredUsers.map((user) => <button key={user.id} onClick={() => void startConversation(user.id)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-sm hover:bg-muted"><UserRound className="h-4 w-4 text-muted-foreground" /><span className="truncate">{user.name}</span><Badge variant="outline" className="ml-auto">{roleLabel(user.role)}</Badge></button>)}</div>
         </CardContent>
       </Card>
       <Card className="flex h-[620px] max-h-screen flex-col overflow-hidden">
         <CardHeader className="border-b shrink-0">
           <CardTitle>{selected ? selected.otherUser.name : "Select a conversation"}</CardTitle>
-          {selected && <p className="text-sm text-muted-foreground">{roleLabel(selected.otherUser.role)} · Text messages only</p>}
+          {selected && <p className="text-sm text-muted-foreground">Text messages only</p>}
         </CardHeader>
         
         <CardContent className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
