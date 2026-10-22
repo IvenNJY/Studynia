@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 
 const highlights = [
-  "Canvas & Moodle sync",
+  "Canvas sync",
   "Active recall quizzes",
   "Real-time collaboration",
 ];
@@ -166,7 +166,7 @@ export function Hero() {
               <div className="flex min-w-0 items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground sm:text-xs">
                 <BrainCircuit className="hidden h-3.5 w-3.5 shrink-0 text-primary sm:block" />
                 <span className="truncate">
-                  app.studynia.com/neurobiology-101
+                  studynia.com/
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary">
@@ -332,7 +332,7 @@ export function Hero() {
                     Your courses, all together.
                   </h3>
                   <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                    Bring Canvas and Moodle materials into one organized study
+                    Bring Canvas materials into one organized study
                     space, ready when you are.
                   </p>
                 </div>

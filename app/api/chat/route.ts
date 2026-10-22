@@ -44,11 +44,13 @@ export async function GET() {
 		const profile = Array.isArray(other?.profiles) ? other.profiles[0] : other?.profiles
 		return {
 			id,
-			otherUser: { id: profile?.id, name: profile?.full_name || "Unnamed user", role: profile?.role },
+			otherUser: { id: profile?.id, name: profile?.full_name || "Unnamed user" },
+			isAdmin: profile?.role?.toLowerCase() === "admin",
 			latestMessage: latest ?? null,
 			unread: !!latest && latest.sender_id !== user.id && (!participantReads.get(id) || latest.created_at > participantReads.get(id)!),
 		}
-	}).sort((a, b) => (b.latestMessage?.created_at || "").localeCompare(a.latestMessage?.created_at || ""))
+	}).filter((conversation) => !conversation.isAdmin).map(({ isAdmin: _isAdmin, ...conversation }) => conversation)
+		.sort((a, b) => (b.latestMessage?.created_at || "").localeCompare(a.latestMessage?.created_at || ""))
 
 	return NextResponse.json({ conversations, unreadCount })
 }
@@ -60,8 +62,9 @@ export async function POST(request: Request) {
 	if (!body.userId || body.userId === user.id) return NextResponse.json({ error: "Choose another user" }, { status: 400 })
 
 	const supabase = admin()
-	const { data: target } = await supabase.from("profiles").select("id").eq("id", body.userId).maybeSingle()
+	const { data: target } = await supabase.from("profiles").select("id, role").eq("id", body.userId).maybeSingle()
 	if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
+	if (target.role?.toLowerCase() === "admin") return NextResponse.json({ error: "This user cannot be contacted" }, { status: 403 })
 	const { data: existing } = await supabase.from("chat_participants").select("conversation_id").eq("user_id", user.id)
 	const existingIds = (existing ?? []).map((item) => item.conversation_id)
 	if (existingIds.length) {

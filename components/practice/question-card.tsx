@@ -22,12 +22,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Toaster, toast } from "sonner"
+import { toast } from "sonner"
 
-// TODO: Make this dynamic based on user configuration
-const NUM_QUESTIONS = 5
-// Future implementation: Allow users to set custom num_questions
-// const [customNumQuestions, setCustomNumQuestions] = useState(5)
+const DEFAULT_NUM_QUESTIONS = 5
+const MAX_NUM_QUESTIONS = 15
 
 const testTypes = ["Multiple Choice"]
 
@@ -74,6 +72,7 @@ export function GenerateTestCard() {
   const [isFilesDialogOpen, setIsFilesDialogOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedTestType, setSelectedTestType] = useState(0)
+  const [numQuestions, setNumQuestions] = useState(String(DEFAULT_NUM_QUESTIONS))
   const [isMounted, setIsMounted] = useState(false);
   const [error, setError] = useState<string | null>(null)
 
@@ -246,9 +245,7 @@ export function GenerateTestCard() {
       const payload = {
         course_id: selectedCourse.id,
         title: `Assessment for ${selectedCourse.course_name}`,
-        num_questions: NUM_QUESTIONS,
-        // TODO: Support customization of num_questions
-        // num_questions: customNumQuestions,
+        num_questions: Math.min(MAX_NUM_QUESTIONS, Math.max(1, Number(numQuestions) || DEFAULT_NUM_QUESTIONS)),
 
         // Instantly transform the Canvas API URLs into download links
         files: selectedFiles.map((file) => {
@@ -456,46 +453,49 @@ export function GenerateTestCard() {
           </Dialog>
 
           {/* Test Type Selection */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Test Type
-            </p>
-            <div className="grid">
-              {testTypes.map((type, index) => (
-                <Button
-                  key={type}
-                  variant={selectedTestType === index ? "default" : "outline"}
-                  className={
-                    selectedTestType === index
-                      ? "h-10 rounded-md bg-primary text-primary-foreground"
-                      : "h-10 rounded-md border-border bg-muted/20 text-muted-foreground hover:bg-muted/40"
-                  }
-                  onClick={() => setSelectedTestType(index)}
-                >
-                  {type}
-                </Button>
-              ))}
+          <div className="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Test Type
+              </p>
+              <div className="grid">
+                {testTypes.map((type, index) => (
+                  <Button
+                    key={type}
+                    variant={selectedTestType === index ? "default" : "outline"}
+                    className={
+                      selectedTestType === index
+                        ? "h-10 rounded-md bg-primary text-primary-foreground"
+                        : "h-10 rounded-md border-border bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                    }
+                    onClick={() => setSelectedTestType(index)}
+                  >
+                    {type}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* TODO: Future implementation for custom num_questions
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Number of Questions
-            </p>
-            <div className="flex items-center gap-2">
-              <Slider
-                value={[customNumQuestions]}
-                onValueChange={(value) => setCustomNumQuestions(value[0])}
+            <div className="space-y-2">
+              <label htmlFor="question-count" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Questions
+              </label>
+              <input
+                id="question-count"
+                type="number"
                 min={1}
-                max={20}
+                max={MAX_NUM_QUESTIONS}
                 step={1}
-                className="flex-1"
+                value={numQuestions}
+                onChange={(event) => setNumQuestions(event.target.value)}
+                onBlur={() => {
+                  const amount = Number(numQuestions)
+                  setNumQuestions(String(Math.min(MAX_NUM_QUESTIONS, Math.max(1, Number.isFinite(amount) ? Math.floor(amount) : DEFAULT_NUM_QUESTIONS))))
+                }}
+                disabled={isGenerating}
+                className="h-10 w-full rounded-md border border-border bg-muted/35 px-3 text-sm"
               />
-              <span className="text-sm font-semibold w-12">{customNumQuestions}</span>
             </div>
           </div>
-          */}
 
           {/* Generate Button */}
           <Button
@@ -518,7 +518,6 @@ export function GenerateTestCard() {
         </CardContent>
       </Card>
 
-      <Toaster />
     </>
   )
 }

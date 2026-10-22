@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BookOpen, GraduationCap, Folder, FolderPlus, RefreshCw, Settings } from "lucide-react"
+import { toast } from "sonner"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Carousel,
   CarouselContent,
@@ -28,7 +30,6 @@ export function CourseList() {
   const [selectedSemester, setSelectedSemester] = useState("All")
   const [hasSetInitialSemester, setHasSetInitialSemester] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [showAddCourse, setShowAddCourse] = useState(false)
   const [newCourseName, setNewCourseName] = useState("")
   const [newCourseSemester, setNewCourseSemester] = useState("")
@@ -70,7 +71,7 @@ export function CourseList() {
       }
     } catch (error) {
       console.error("Failed to load courses:", error)
-      setSyncMessage(error instanceof Error ? error.message : "Failed to load courses")
+      toast.error(error instanceof Error ? error.message : "Failed to load courses")
     }
     
     setLoading(false)
@@ -84,7 +85,7 @@ export function CourseList() {
   const handleSync = async () => {
     setLoading(true)
     setSyncing(true)
-    setSyncMessage("Syncing courses and assignments. Please stay on this page.")
+    const toastId = toast.loading("Syncing courses and assignments…")
 
     try {
       const response = await fetch("/api/lms/sync", { method: "POST" })
@@ -117,15 +118,16 @@ export function CourseList() {
           (right.created_at ?? "").localeCompare(left.created_at ?? "")
         )
       })
-      setSyncMessage(
+      toast.success(
         syncedCourses.length === 0
           ? "Sync complete. Your saved courses are still available."
-          : "Sync complete."
+          : "Sync complete.",
+        { id: toastId }
       )
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("Sync Catch:", err)
-      setSyncMessage(`Sync failed: ${message}`)
+      toast.error(`Sync failed: ${message}`, { id: toastId })
     } finally {
       setLoading(false)
       setSyncing(false)
@@ -134,24 +136,25 @@ export function CourseList() {
 
   const handleAddCourse = async () => {
     if (!newCourseName.trim()) return
-    const response = await fetch("/api/courses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        course_name: newCourseName,
-        description: newCourseSemester,
-      }),
-    })
-    const payload = await response.json() as Course & { error?: string; details?: string }
-    if (!response.ok) {
-      setSyncMessage(`${payload.error || "Could not add the course."}${payload.details ? ` (${payload.details})` : ""}`)
-      return
+    try {
+      const response = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_name: newCourseName,
+          description: newCourseSemester,
+        }),
+      })
+      const payload = await response.json() as Course & { error?: string; details?: string }
+      if (!response.ok) throw new Error(`${payload.error || "Could not add the course."}${payload.details ? ` (${payload.details})` : ""}`)
+      setCourses((previous) => [payload, ...previous])
+      setNewCourseName("")
+      setNewCourseSemester("")
+      setShowAddCourse(false)
+      toast.success("Course added.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add the course.")
     }
-    const course = payload
-    setCourses((previous) => [course, ...previous])
-    setNewCourseName("")
-    setNewCourseSemester("")
-    setShowAddCourse(false)
   }
 
   return (
@@ -187,34 +190,32 @@ export function CourseList() {
         </div>
       </div>
 
-      {syncMessage && (
-        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {syncMessage}
-        </div>
-      )}
-
-      {showAddCourse && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
+      <Dialog open={showAddCourse} onOpenChange={setShowAddCourse}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add course</DialogTitle>
+            <DialogDescription>Add a course folder to organize your materials.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
             <input
               value={newCourseName}
               onChange={(event) => setNewCourseName(event.target.value)}
               placeholder="Course name"
-              className="h-9 flex-1 rounded-md border bg-background px-3 text-sm"
-              disabled={loading}
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             />
             <input
               value={newCourseSemester}
               onChange={(event) => setNewCourseSemester(event.target.value)}
               placeholder="Semester (e.g. Fall 2026)"
-              className="h-9 flex-1 rounded-md border bg-background px-3 text-sm"
-              disabled={loading}
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCourse(false)}>Cancel</Button>
             <Button onClick={handleAddCourse} disabled={!newCourseName.trim() || loading}>Save course</Button>
-            <Button variant="ghost" onClick={() => setShowAddCourse(false)}>Cancel</Button>
-          </CardContent>
-        </Card>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
