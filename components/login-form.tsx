@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import Image from 'next/image'
 
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/client'
@@ -119,6 +120,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                 onClick={handleSocialLogin}
                 disabled={isOAuthLoading || isLoading}
               >
+                <Image src="/github-mark.svg" alt="" width={16} height={16} unoptimized className="mr-2 h-4 w-4" />
                 {isOAuthLoading ? 'Redirecting...' : 'Continue with GitHub'}
               </Button>
             </div>

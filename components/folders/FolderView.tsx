@@ -21,6 +21,8 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 // --- Types ---
@@ -551,56 +553,58 @@ export function FolderView({ courseId }: { courseId: string }) {
 
   const handleAddMaterial = async () => {
     if (!course?.id || !materialTitle.trim() || !materialUrl.trim()) return
-    const response = await fetch("/api/materials", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ course_id: course.id, title: materialTitle, file_url: materialUrl }),
-    })
-    if (!response.ok) {
-      setError("Failed to save the material.")
-      return
-    }
-    const material = await response.json() as {
-      id: string
-      title: string
-      file_url: string
-      content_type: string
-    }
-    setModules((previous) => {
-      const firstModule = previous[0]
-      if (!firstModule) {
-        return [{
-          id: -1,
-          name: "My Materials",
-          position: 0,
-          published: true,
-          state: "published",
-          items: [{
+    try {
+      const response = await fetch("/api/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: course.id, title: materialTitle, file_url: materialUrl }),
+      })
+      if (!response.ok) throw new Error("Failed to save the material.")
+      const material = await response.json() as {
+        id: string
+        title: string
+        file_url: string
+        content_type: string
+      }
+      setModules((previous) => {
+        const firstModule = previous[0]
+        if (!firstModule) {
+          return [{
+            id: -1,
+            name: "My Materials",
+            position: 0,
+            published: true,
+            state: "published",
+            items: [{
+              id: Date.now(),
+              material_id: material.id,
+              title: material.title,
+              type: material.content_type,
+              html_url: material.file_url,
+              published: true,
+              position: 0,
+            }],
+          }]
+        }
+        return previous.map((module, index) => index === 0
+          ? { ...module, items: [...module.items, {
             id: Date.now(),
             material_id: material.id,
             title: material.title,
             type: material.content_type,
             html_url: material.file_url,
             published: true,
-            position: 0,
-          }],
-        }]
-      }
-      return previous.map((module, index) => index === 0
-        ? { ...module, items: [...module.items, {
-          id: Date.now(),
-          material_id: material.id,
-          title: material.title,
-          type: material.content_type,
-          html_url: material.file_url,
-          published: true,
-          position: module.items.length,
-        }] }
-        : module)
-    })
-    setMaterialTitle("")
-    setMaterialUrl("")
-    setShowAddMaterial(false)
+            position: module.items.length,
+          }] }
+          : module)
+      })
+      setMaterialTitle("")
+      setMaterialUrl("")
+      setShowAddMaterial(false)
+      toast.success("Material added.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save the material.")
+    }
   }
 
   const handleDragStart = (e: React.DragEvent, itemId: number, moduleId: number) => {
@@ -714,7 +718,7 @@ export function FolderView({ courseId }: { courseId: string }) {
                     <p className="text-sm text-muted-foreground">Drag and drop materials to organize, or check them off as you go.</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAddMaterial((visible) => !visible)}>
+                    <Button variant="outline" size="sm" onClick={() => setShowAddMaterial(true)}>
                       Add material
                     </Button>
                     <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
@@ -723,15 +727,22 @@ export function FolderView({ courseId }: { courseId: string }) {
                   </div>
                 </div>
 
-                {showAddMaterial && (
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
+                <Dialog open={showAddMaterial} onOpenChange={setShowAddMaterial}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add material</DialogTitle>
+                      <DialogDescription>Add a link to a course resource.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
                       <Input value={materialTitle} onChange={(event) => setMaterialTitle(event.target.value)} placeholder="Material title" />
                       <Input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} placeholder="File URL" type="url" />
-                      <Button onClick={handleAddMaterial} disabled={!materialTitle.trim() || !materialUrl.trim()}>Save</Button>
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
+                      <Button onClick={() => void handleAddMaterial()} disabled={!materialTitle.trim() || !materialUrl.trim()}>Save material</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
                 <div className="space-y-4">
                   {modules.length === 0 ? (

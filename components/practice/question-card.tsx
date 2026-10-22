@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Toaster, toast } from "sonner"
+import { toast } from "sonner"
 
 const DEFAULT_NUM_QUESTIONS = 5
 const MAX_NUM_QUESTIONS = 15
@@ -518,7 +518,6 @@ export function GenerateTestCard() {
         </CardContent>
       </Card>
 
-      <Toaster />
     </>
   )
 }

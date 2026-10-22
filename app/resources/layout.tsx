@@ -1,5 +1,6 @@
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { Toaster } from "@/components/ui/sonner"
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className="p-4 md:p-6 lg:p-8 flex justify-center w-full">
           {children}
         </main>
+        <Toaster />
         </SidebarInset>
     </SidebarProvider>
   )
