@@ -59,6 +59,10 @@ export async function POST() {
     const canvasBody = await canvasResponse.text();
 
     if (!canvasResponse.ok) {
+      if (canvasResponse.status === 401 || canvasResponse.status === 403) {
+        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      }
+
       return NextResponse.json(
         {
           error: "Canvas API rejected the token",

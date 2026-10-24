@@ -26,7 +26,7 @@ export function ProfileCard({ fullName, avatarUrl }: ProfileCardProps) {
           <AvatarFallback className=" text-2xl font-semibold">{getInitials(fullName)}</AvatarFallback>
         </Avatar>
         <h3 className="text-xl font-semibold text-foreground">{fullName || "Your Profile"}</h3>
-        <Button type="button" variant="outline" className="mt-6 w-full font-medium text-foreground" onClick={editProfile}>
+        <Button type="button" variant="outline" className="mt-6 w-full font-medium text-foreground curosr-pointer" onClick={editProfile}>
           Edit Profile
         </Button>
         <div className="mt-4 w-full">

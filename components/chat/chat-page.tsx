@@ -126,7 +126,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
             {search.trim() && (
               <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
                 {filteredUsers.length ? filteredUsers.map((user) => (
-                  <button key={user.id} onClick={() => void startConversation(user.id)} className="flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm hover:bg-muted">
+                  <button key={user.id} onClick={() => void startConversation(user.id)} className="flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm hover:bg-muted cursor-pointer">
                     <UserRound className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">{user.name}</span>
                   </button>
@@ -136,7 +136,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
-          {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-muted ${selectedId === conversation.id ? "bg-muted" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{conversation.otherUser.name}</span>{conversation.unread && <span className="h-2 w-2 rounded-full bg-primary" />}</div><p className="truncate text-xs text-muted-foreground">{conversation.latestMessage?.body || "No messages yet"}</p></button>)}
+          {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={`w-full rounded-lg p-3 text-left transition-colors cursor-pointer hover:bg-muted ${selectedId === conversation.id ? "bg-muted" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{conversation.otherUser.name}</span>{conversation.unread && <span className="h-2 w-2 rounded-full bg-primary" />}</div><p className="truncate text-xs text-muted-foreground">{conversation.latestMessage?.body || "No messages yet"}</p></button>)}
         </CardContent>
       </Card>
       <Card className="flex h-[620px] max-h-screen flex-col overflow-hidden">
@@ -166,7 +166,9 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
             <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected} maxLength={4000} />
             {attemptId && <p className="text-[10px] text-primary">Assessment attempt attached. The next message will include it for feedback context.</p>}
           </div>
-          <Button type="submit" disabled={!selected || !draft.trim()} size="icon" aria-label="Send message"><Send /></Button>
+          <Button type="submit" disabled={!selected || !draft.trim()} size="icon" aria-label="Send message" className="cursor-pointer">
+            <Send />
+          </Button>
         </form>
       </Card>
       <Dialog open={!!attemptDetails || attemptLoading || !!attemptError} onOpenChange={(open) => { if (!open) { setAttemptDetails(null); setAttemptError("") } }}>

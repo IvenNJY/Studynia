@@ -104,6 +104,7 @@ export function GpaProgression({ selectedSemester, onSelectSemester, currentGpa,
               setSaveError(null)
             }}
             aria-expanded={isEditing}
+            className="cursor-pointer"
           >
             {isEditing ? "Close" : currentGpa === null ? <><Plus className="mr-1 h-4 w-4" />Add</> : <><Pencil className="mr-1 h-4 w-4" />Edit</>}
           </Button>

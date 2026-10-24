@@ -25,6 +25,13 @@ export async function POST(request: Request) {
 		});
 
 		if (error) {
+			if (error.code === "23505" && error.message.includes("secrets_name_idx")) {
+				return NextResponse.json(
+					{ error: "This LMS domain is already connected." },
+					{ status: 409 }
+				);
+			}
+
 			return NextResponse.json(
 				{ error: "Secure storage failed", details: error.message },
 				{ status: 500 }
