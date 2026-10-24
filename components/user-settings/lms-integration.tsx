@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { FlaskConical, Key, Save, Globe } from "lucide-react"
+import { toast } from "sonner"
 
 export function LmsIntegration() {
   const [isConnected, setIsConnected] = useState(false)
@@ -76,11 +77,13 @@ export function LmsIntegration() {
       } else {
         const errorData = await response.json();
         console.error("Failed to connect LMS:", errorData);
-        alert(`Connection failed: ${errorData.error || 'Unknown error'}\nDetails: ${errorData.details || ''}`);
+        toast.error(errorData.error || "Failed to connect LMS.", {
+          description: errorData.details,
+        });
       }
     } catch (err) {
       console.error("Unexpected error:", err)
-      alert("An unexpected error occurred. Please try again.");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false)
     }

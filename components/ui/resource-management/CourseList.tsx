@@ -127,7 +127,7 @@ export function CourseList() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("Sync Catch:", err)
-      toast.error(`Sync failed: ${message}`, { id: toastId })
+      toast.error(message === "Invalid token" ? message : `Sync failed: ${message}`, { id: toastId })
     } finally {
       setLoading(false)
       setSyncing(false)
@@ -179,11 +179,11 @@ export function CourseList() {
               ))}
             </select>
           )}
-          <Button variant="outline" size="sm" onClick={handleSync} disabled={loading || syncing} className="gap-2">
+          <Button variant="outline" size="sm" onClick={handleSync} disabled={loading || syncing} className="gap-2 cursor-pointer">
             <RefreshCw className={syncing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             {syncing ? "Syncing..." : "Sync LMS"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowAddCourse((visible) => !visible)} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowAddCourse((visible) => !visible)} className="gap-2 cursor-pointer">
             <FolderPlus className="h-4 w-4" />
             Add course
           </Button>

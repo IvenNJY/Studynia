@@ -38,10 +38,12 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
     }
 
     try {
+      const defaultName = email.trim().split("@")[0]
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          data: { full_name: defaultName },
           emailRedirectTo: `${window.location.origin}/protected`,
         },
       })

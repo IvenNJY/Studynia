@@ -146,7 +146,7 @@ export function PinnedResearch() {
           <Pin className="w-5 h-5 text-muted-foreground fill-current" />
           <h2 className="text-lg font-semibold">Pinned Research</h2>
         </div>
-        <Button size="sm" onClick={openAddDialog}>
+        <Button size="sm" onClick={openAddDialog} className="cursor-pointer">
           <Plus className="h-4 w-4" />
           Add research
         </Button>
@@ -185,7 +185,7 @@ export function PinnedResearch() {
           </Card>
         ))}
         {!isLoading && filteredResearch.length > visibleResearch.length && (
-          <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer">
             <span>+{filteredResearch.length - visibleResearch.length} more</span>
             <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setIsAllResearchOpen(true)}>
               Show more
