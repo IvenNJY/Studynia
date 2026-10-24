@@ -42,6 +42,7 @@ interface Course {
 
 interface CanvasFile {
   id: number
+  content_id: number | string
   display_name: string
   filename: string
   url: string
@@ -145,20 +146,24 @@ export function GenerateTestCard() {
         data.modules.forEach((module: any) => {
           if (module.items) {
             module.items.forEach((item: any) => {
-              // Filter for document types (PDF, PowerPoint, Word, etc.)
-              if (
-                item.type === "File" 
-                // &&
-                // (item.content_type?.includes("pdf") ||
-                //   item.content_type?.includes("powerpoint") ||
-                //   item.content_type?.includes("word") ||
-                //   item.content_type?.includes("document"))
-              ) {
+              const contentId = item.content_id
+              const hasFileId =
+                (typeof contentId === "number" && Number.isSafeInteger(contentId) && contentId > 0) ||
+                (typeof contentId === "string" && /^\d+$/.test(contentId))
+              const fileUrl = typeof item.url === "string" && item.url.trim()
+                ? item.url
+                : typeof item.html_url === "string" && item.html_url.trim()
+                  ? item.html_url
+                  : ""
+
+              // Only show real Canvas File items with a file ID and a usable Canvas link.
+              if (item.type === "File" && hasFileId && fileUrl) {
                 files.push({
                   id: item.id,
+                  content_id: contentId,
                   display_name: item.title || item.name || "Untitled",
                   filename: item.title || item.name || "Untitled",
-                  url: item.url || item.html_url || "",
+                  url: fileUrl,
                   content_type: item.content_type,
                   created_at: item.created_at,
                   size: item.size,
@@ -226,12 +231,11 @@ export function GenerateTestCard() {
 
         // Instantly transform the Canvas API URLs into download links
         files: selectedFiles.map(f => {
-          const domain = new URL(f.url).hostname;
-          const fileId = f.url.split('/').pop();
+          const origin = new URL(f.url).origin;
           
           return {
             filename: f.display_name || f.filename || "lecture.pdf", // Ensure you pass a filename!
-            url: `https://${domain}/files/${fileId}/download?download_frd=1`
+            url: `${origin}/files/${f.content_id}/download?download_frd=1`
           };
         }),
 
