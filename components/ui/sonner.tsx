@@ -6,11 +6,12 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { CheckmarkCircle02Icon, InformationCircleIcon, Alert02Icon, MultiplicationSignCircleIcon, Loading03Icon } from "@hugeicons/core-free-icons"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { theme = "light" } = useTheme()
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      richColors
       className="toaster group"
       icons={{
         success: (

@@ -16,7 +16,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
               <CardTitle className="text-2xl">Sorry, something went wrong.</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">An authentication error occurred. See the notification for details.</p>
+              <p className="text-sm text-muted-foreground">An error occurred</p>
             </CardContent>
           </Card>
 

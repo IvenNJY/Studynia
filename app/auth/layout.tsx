@@ -42,7 +42,7 @@ export default function AuthLayout({
       <section className="relative flex min-h-svh items-center justify-center px-4 sm:px-8 lg:px-12">
         <div className="absolute left-5 top-5 lg:hidden"><Brand /></div>
         <div className="w-full max-w-full pt-12 lg:pt-0">
-          <Toaster />
+          <Toaster position="bottom-center"/>
           {children}
         </div>
       </section>
