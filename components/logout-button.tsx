@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { createClient } from '@/lib/client'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,9 +22,14 @@ export function LogoutButton() {
 
   const logout = async () => {
     const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-    setIsOpen(false)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      router.push('/auth/login')
+      setIsOpen(false)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Could not sign out.')
+    }
   }
 
   return (

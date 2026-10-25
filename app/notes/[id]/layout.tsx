@@ -63,7 +63,7 @@ export default async function Layout(props: { children: React.ReactNode, params:
           </div>
         </header>
         <main className="p-4 md:p-6 lg:p-8 flex justify-center w-full">
-          <Toaster />
+          <Toaster position="top-center" />
           {props.children}
         </main>
         </SidebarInset>

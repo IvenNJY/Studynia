@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ error: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams
+  const errorMessage = params?.error || 'An unspecified authentication error occurred.'
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
@@ -13,11 +14,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
               <CardTitle className="text-2xl">Sorry, something went wrong.</CardTitle>
             </CardHeader>
             <CardContent>
-              {params?.error ? (
-                <p className="text-sm text-muted-foreground">{params.error}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">An unspecified error occurred.</p>
-              )}
+              <p className="text-sm text-muted-foreground">{errorMessage}</p>
             </CardContent>
           </Card>
 
