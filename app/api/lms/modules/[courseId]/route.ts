@@ -33,6 +33,7 @@ type CanvasModule = {
 
 type CanvasModuleItem = {
 	id: number
+	content_id?: number | string
 	title?: string
 	type?: string
 	html_url?: string
@@ -223,6 +224,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 
 					const items = (Array.isArray(rawItems) ? rawItems : []).map((item: CanvasModuleItem) => ({
 						id: item.id,
+						content_id: item.content_id,
 						title: normalizeText(item.title, "Untitled item"),
 						type: normalizeText(item.type, "item"),
 						html_url: typeof item.html_url === "string" ? item.html_url : undefined,
