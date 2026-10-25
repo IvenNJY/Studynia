@@ -47,6 +47,12 @@ type CanvasModuleItem = {
 	}
 }
 
+type CanvasFileDetails = {
+	filename?: string
+	"content-type"?: string
+	size?: number
+}
+
 function normalizeText(value: unknown, fallback: string) {
 	return typeof value === "string" && value.trim().length > 0 ? value : fallback
 }
@@ -55,9 +61,10 @@ function looksLikeUuid(value: string) {
 	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ courseId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
 	try {
 		const { courseId } = await params
+		const includeFileMetadata = new URL(request.url).searchParams.get("include_file_metadata") === "1"
 
 		const supabaseServer = await createServerClient()
 		const {
@@ -222,23 +229,39 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 
 					const rawItems = itemsResponse.ok ? await itemsResponse.json() : []
 
-					const items = (Array.isArray(rawItems) ? rawItems : []).map((item: CanvasModuleItem) => ({
-						id: item.id,
-						content_id: item.content_id,
-						title: normalizeText(item.title, "Untitled item"),
-						type: normalizeText(item.type, "item"),
-						html_url: typeof item.html_url === "string" ? item.html_url : undefined,
-						url: typeof item.url === "string" ? item.url : undefined,
-						page_url: typeof item.page_url === "string" ? item.page_url : undefined,
-						published: Boolean(item.published),
-						position: typeof item.position === "number" ? item.position : 0,
-						completion_requirement:
-							item.completion_requirement && typeof item.completion_requirement === "object"
-								? {
+					const items = await Promise.all((Array.isArray(rawItems) ? rawItems : []).map(async (item: CanvasModuleItem) => {
+						let fileDetails: CanvasFileDetails | null = null
+						if (includeFileMetadata && item.type === "File" && /^\d+$/.test(String(item.content_id ?? ""))) {
+							try {
+								const fileResponse = await fetch(`${baseUrl}/api/v1/files/${item.content_id}`, {
+									headers: { Authorization: `Bearer ${accessToken}` },
+								})
+								if (fileResponse.ok) fileDetails = await fileResponse.json() as CanvasFileDetails
+							} catch {
+								// The module item title remains available as a fallback for the picker.
+							}
+						}
+						return {
+							id: item.id,
+							content_id: item.content_id,
+							title: normalizeText(item.title, "Untitled item"),
+							filename: fileDetails?.filename,
+							content_type: fileDetails?.["content-type"],
+							size: fileDetails?.size,
+							type: normalizeText(item.type, "item"),
+							html_url: typeof item.html_url === "string" ? item.html_url : undefined,
+							url: typeof item.url === "string" ? item.url : undefined,
+							page_url: typeof item.page_url === "string" ? item.page_url : undefined,
+							published: Boolean(item.published),
+							position: typeof item.position === "number" ? item.position : 0,
+							completion_requirement:
+								item.completion_requirement && typeof item.completion_requirement === "object"
+									? {
 										completed: Boolean(item.completion_requirement.completed),
 										type: normalizeText(item.completion_requirement.type, "completion"),
 									}
-								: undefined,
+									: undefined,
+						}
 					}))
 
 					return {
