@@ -191,7 +191,7 @@ export function AppSidebar() {
             return {
               ...item,
               children: [
-                { label: "Favorites", isSection: true, href: "/favorites" },
+                { label: "Favorites", isSection: true, href: "/notes?filter=favorites" },
                 ...notes.filter((note) => note.note_favorites?.length).map((note) => ({
                   id: `favorite-${note.id}`,
                   title: note.title || "Untitled Note",

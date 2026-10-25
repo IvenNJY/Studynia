@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { CheckCircle2, XCircle, Target, BarChart3, Circle, CircleDot, Loader2 } from "lucide-react"
+import { CheckCircle2, XCircle, Target, Circle, CircleDot, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,9 @@ import { createClient } from "@/lib/client"
 interface QuizPlayerProps {
   quiz: any[]
   assessmentId?: string // Added so we can link the attempt to the DB assessment
-  onReset: () => void
 }
 
-export default function QuizPlayer({ quiz, assessmentId, onReset }: QuizPlayerProps) {
+export default function QuizPlayer({ quiz, assessmentId }: QuizPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [showResults, setShowResults] = useState(false)
@@ -343,23 +342,6 @@ export default function QuizPlayer({ quiz, assessmentId, onReset }: QuizPlayerPr
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-3 pt-6 border-t border-border sticky bottom-0 bg-card py-8">
-                  <Button variant="outline" onClick={onReset}>
-                    Generate Another Test
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setCurrentIndex(0)
-                      setAnswers({})
-                      setShowResults(false)
-                    }}
-                    className="bg-primary text-primary-foreground"
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Retake Test
-                  </Button>
-                </div>
               </div>
             )
           })()}

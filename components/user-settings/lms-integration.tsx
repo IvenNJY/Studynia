@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +10,7 @@ import { FlaskConical, Key, Save, Globe } from "lucide-react"
 import { toast } from "sonner"
 
 export function LmsIntegration() {
+  const router = useRouter()
   const [isConnected, setIsConnected] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
@@ -195,7 +197,10 @@ export function LmsIntegration() {
               >
                 Update Token
               </Button>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6">
+              <Button
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 cursor-pointer"
+                onClick={() => router.push("/resources")}
+              >
                 Sync Now
               </Button>
             </div>

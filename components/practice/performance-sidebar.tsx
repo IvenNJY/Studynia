@@ -637,7 +637,6 @@ export function PerformanceSidebar({
             <QuizPlayer 
               quiz={activeQuiz.questions} 
               assessmentId={activeQuiz.assessmentId} 
-              onReset={() => setActiveQuiz(null)} 
             />
           )}
         </DialogContent>
