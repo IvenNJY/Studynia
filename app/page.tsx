@@ -34,7 +34,7 @@ export default function Home() {
         </div>
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-4 sm:gap-6 md:gap-8 py-8 sm:py-12 md:py-16">
-          <p>By Iven Nyam Jia Yang</p> <img src="https://avatars.githubusercontent.com/u/178879836?s=400&u=411df684b9c4f98831da4ef086c6e5b5a25e8abf&v=4" alt="Logo" width={100} height={100} />
+          <p>Study tomorrow ? Study today ? Just Study-niaaaaaa</p>
         </footer>
       </div>
     </main>

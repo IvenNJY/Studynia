@@ -31,14 +31,16 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
   const [attemptError, setAttemptError] = useState("")
 
   const selected = conversations.find((conversation) => conversation.id === selectedId)
-  const filteredUsers = useMemo(() => users.filter((user) => user.name.toLowerCase().includes(search.toLowerCase())), [search, users])
+  const filteredUsers = useMemo(() => users.filter((user) => user.id !== currentUserId && user.name.toLowerCase().includes(search.toLowerCase())), [currentUserId, search, users])
 
   async function loadConversations() {
     const response = await fetch("/api/chat", { cache: "no-store" })
     if (!response.ok) return
     const data = await response.json()
-    setConversations(data.conversations ?? [])
-    if (!selectedId && data.conversations?.[0]) setSelectedId(data.conversations[0].id)
+    if (data.userId) setCurrentUserId(data.userId)
+    const availableConversations = (data.conversations ?? []).filter((conversation: Conversation) => conversation.otherUser?.id && conversation.otherUser.id !== data.userId)
+    setConversations(availableConversations)
+    if (!selectedId && availableConversations[0]) setSelectedId(availableConversations[0].id)
   }
 
   async function loadUsers() {
@@ -68,6 +70,10 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
   }, [selectedId, selected?.otherUser.id])
 
   async function startConversation(userId: string) {
+    if (!userId || userId === currentUserId) {
+      setError("You can't start a chat with yourself.")
+      return
+    }
     const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) })
     if (!response.ok) { setError("Could not start conversation"); return }
     const data = await response.json()

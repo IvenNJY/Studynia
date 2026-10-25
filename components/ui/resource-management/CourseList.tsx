@@ -28,7 +28,6 @@ export function CourseList() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSemester, setSelectedSemester] = useState("All")
-  const [hasSetInitialSemester, setHasSetInitialSemester] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [showAddCourse, setShowAddCourse] = useState(false)
   const [newCourseName, setNewCourseName] = useState("")
@@ -38,13 +37,6 @@ export function CourseList() {
     const terms = courses.map((c) => c.description || "Unknown Term")
     return Array.from(new Set(terms)).sort()
   }, [courses])
-
-  useEffect(() => {
-    if (semesters.length > 0 && !hasSetInitialSemester) {
-      setSelectedSemester(semesters[semesters.length - 1])
-      setHasSetInitialSemester(true)
-    }
-  }, [semesters, hasSetInitialSemester])
 
   const filteredCourses = useMemo(() => {
     if (selectedSemester === "All") return courses

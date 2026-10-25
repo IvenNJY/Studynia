@@ -77,27 +77,10 @@ export function Hero() {
           className="studynia-rise max-w-4xl text-balance text-[2.5rem] font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-6xl lg:text-7xl"
           style={{ animationDelay: "80ms" }}
         >
-          Your centralized{" "}
-          <span className="relative inline-block">
-            <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/50 bg-clip-text text-transparent">
-              student knowledge
-            </span>
-            <svg
-              aria-hidden
-              className="absolute -bottom-1.5 left-0 h-2.5 w-full text-primary/40 sm:-bottom-2 sm:h-3"
-              viewBox="0 0 200 12"
-              fill="none"
-              preserveAspectRatio="none"
-            >
-              <path
-                d="M2 9.5C50 2.5 150 2.5 198 9.5"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-            </svg>
+          Just Study ,{" "}
+          <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/50 bg-clip-text text-transparent">
+            Studynia
           </span>{" "}
-          system
         </h1>
 
         {/* Subheadline */}

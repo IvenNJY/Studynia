@@ -351,7 +351,9 @@ toast.success("Assessment generated and saved successfully!")
                 disabled={loadingCourses || filteredCourses.length === 0}
               >
               <SelectTrigger className="h-10 w-full rounded-md border-border bg-muted/35 text-sm">
-                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Choose a course"} />
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Choose a course"}>
+                  {selectedCourse?.course_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {filteredCourses.length === 0 ? (
