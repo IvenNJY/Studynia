@@ -264,6 +264,7 @@ function NavMainSubItem({
 }) {
   const hasChildren = !!item.children?.length;
   const [isOpen, setIsOpen] = React.useState(false);
+  const isFolderItem = parentTitle === "Folder";
 
   if (hasChildren && item.title) {
     return (
@@ -313,7 +314,7 @@ function NavMainSubItem({
         <SidebarMenuSubButton
           id={`nav-sub-button-${(item.id || item.title).toLowerCase().replace(/\s+/g, '-')}`}
           className={cn(
-            "w-full rounded-md transition-colors",
+            "w-full min-w-0 rounded-md transition-colors",
             activeChild === (item.id || item.title) ? "bg-muted! text-foreground!" : ""
           )}
           isActive={activeChild === (item.id || item.title)}
@@ -321,7 +322,11 @@ function NavMainSubItem({
             setActiveParent(parentTitle || "");
             setActiveChild(item.id || item.title!);
           }}
-          render={<a href={item.href}>{item.title}</a>}
+          render={
+            <a href={item.href} title={isFolderItem ? item.title : undefined} className="block w-full min-w-0">
+              <span className={isFolderItem ? "block w-full truncate" : undefined}>{item.title}</span>
+            </a>
+          }
         />
       </SidebarMenuSubItem>
     );

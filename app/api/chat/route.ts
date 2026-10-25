@@ -25,7 +25,7 @@ export async function GET() {
 	if (error) return NextResponse.json({ error: "Failed to load conversations" }, { status: 500 })
 
 	const conversationIds = (participants ?? []).map((item) => item.conversation_id)
-	if (!conversationIds.length) return NextResponse.json({ conversations: [], unreadCount: 0 })
+	if (!conversationIds.length) return NextResponse.json({ conversations: [], unreadCount: 0, userId: user.id })
 
 	const [{ data: otherParticipants }, { data: messages }] = await Promise.all([
 		supabase.from("chat_participants").select("conversation_id, user_id, profiles(id, full_name, role)").in("conversation_id", conversationIds).neq("user_id", user.id),
@@ -49,10 +49,10 @@ export async function GET() {
 			latestMessage: latest ?? null,
 			unread: !!latest && latest.sender_id !== user.id && (!participantReads.get(id) || latest.created_at > participantReads.get(id)!),
 		}
-	}).filter((conversation) => !conversation.isAdmin).map(({ isAdmin: _isAdmin, ...conversation }) => conversation)
+	}).filter((conversation) => !conversation.isAdmin && !!conversation.otherUser.id).map(({ isAdmin: _isAdmin, ...conversation }) => conversation)
 		.sort((a, b) => (b.latestMessage?.created_at || "").localeCompare(a.latestMessage?.created_at || ""))
 
-	return NextResponse.json({ conversations, unreadCount })
+	return NextResponse.json({ conversations, unreadCount, userId: user.id })
 }
 
 export async function POST(request: Request) {

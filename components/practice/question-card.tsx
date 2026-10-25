@@ -355,7 +355,9 @@ export function GenerateTestCard() {
             </p>
             <Select value={selectedCourse?.id || ""} onValueChange={(value) => { if (value) handleCourseSelect(value) }} disabled={loadingCourses}>
               <SelectTrigger className="h-10 w-full rounded-md border-border bg-muted/35 text-sm">
-                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Choose a course"} />
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Choose a course"}>
+                  {selectedCourse?.course_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {filteredCourses.length === 0 ? (

@@ -1,15 +1,16 @@
 import Link from "next/link"
 import { BookOpen } from "lucide-react"
 import { Toaster } from "@/components/ui/sonner"
+import Image from "next/image"
 
 function Brand() {
   return (
     <Link href="/" className="inline-flex w-fit items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-        <BookOpen className="h-5 w-5" />
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground">
+        <Image src="/logo 1.png" alt="Studynia Logo" width={24} height={24} />
       </span>
       <span>
-        <span className="block text-lg font-bold tracking-tight text-foreground">StudyNia</span>
+        <span className="block text-lg font-bold tracking-tight text-foreground">Studynia</span>
         <span className="block text-xs text-muted-foreground">Your learning space</span>
       </span>
     </Link>
