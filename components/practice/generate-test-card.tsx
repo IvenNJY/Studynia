@@ -528,7 +528,6 @@ toast.success("Assessment generated and saved successfully!")
             <QuizPlayer 
               quiz={activeQuiz.quiz}
               assessmentId={activeQuiz.assessmentId}
-              onReset={() => setActiveQuiz(null)} 
             />
           )}
         </DialogContent>

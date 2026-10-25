@@ -37,10 +37,15 @@ export function StudyVelocity({
               {assignmentsDue === 1 ? " assignment" : " assignments"}
             </span>
           </div>
-          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-500/50 border border-primary-foreground/20 text-xs font-medium text-primary-foreground backdrop-blur-sm">
-            {latestAssignment
-              ? `${latestAssignment.title}${dueDate ? ` · Due ${dueDate}` : ""}`
-              : "No upcoming assignments"}
+          <div className="inline-flex max-w-full items-center rounded-full border border-primary-foreground/20 bg-sky-500/50 px-2.5 py-1 text-xs font-medium text-primary-foreground backdrop-blur-sm">
+            <span
+              className="min-w-0 truncate"
+              title={latestAssignment ? `${latestAssignment.title}${dueDate ? ` · Due ${dueDate}` : ""}` : undefined}
+            >
+              {latestAssignment
+                ? `${latestAssignment.title}${dueDate ? ` · Due ${dueDate}` : ""}`
+                : "No upcoming assignments"}
+            </span>
 
             <div className="relative flex size-3 justify-center items-center ml-2">
               {/* Pinging Outer Ring */}
