@@ -12,7 +12,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {/* ... other header content */}
         </header>
         <main className="p-4 flex justify-center w-full m-auto">
-          <Toaster />
+          <Toaster position="top-center" />
           {children}
         </main>
         </SidebarInset>

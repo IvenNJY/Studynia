@@ -17,11 +17,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState(false)
   const router = useRouter()
@@ -30,7 +30,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     e.preventDefault()
     const supabase = createClient()
     setIsLoading(true)
-    setError(null)
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -41,7 +40,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       // Update this route to redirect to an authenticated route. The user already has an active session.
       router.push('/home')
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      toast.error(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -50,7 +49,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const handleSocialLogin = async () => {
     const supabase = createClient()
     setIsOAuthLoading(true)
-    setError(null)
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -62,7 +60,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
       if (error) throw error
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      toast.error(error instanceof Error ? error.message : 'An error occurred')
       setIsOAuthLoading(false)
     }
   }
@@ -106,7 +104,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
                 {isLoading ? 'Logging in...' : 'Login'}
               </Button>

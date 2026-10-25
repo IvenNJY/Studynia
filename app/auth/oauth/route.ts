@@ -6,11 +6,18 @@ import { createClient } from '@/lib/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const providerError = searchParams.get('error_description') || searchParams.get('error')
   // if "next" is in param, use it as the redirect URL
   let next = searchParams.get('next') ?? '/'
   if (!next.startsWith('/')) {
     // if "next" is not a relative URL, use the default
     next = '/'
+  }
+
+  if (providerError) {
+    const errorUrl = new URL('/auth/error', origin)
+    errorUrl.searchParams.set('error', providerError)
+    return NextResponse.redirect(errorUrl)
   }
 
   if (code) {
@@ -28,8 +35,12 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`)
       }
     }
+    const errorUrl = new URL('/auth/error', origin)
+    errorUrl.searchParams.set('error', error?.message || 'Could not complete sign in.')
+    return NextResponse.redirect(errorUrl)
   }
 
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/error`)
+  const errorUrl = new URL('/auth/error', origin)
+  errorUrl.searchParams.set('error', 'Sign in could not be completed because the callback did not include an authorization code.')
+  return NextResponse.redirect(errorUrl)
 }
