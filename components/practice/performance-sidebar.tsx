@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { createClient } from "@/lib/client"
+import { toast } from "sonner"
 import QuizPlayer from "./QuizPlayer" // <-- Ensure this path is correct for your project
 
 type Attempt = {
@@ -116,6 +117,7 @@ export function PerformanceSidebar({
   // Quiz Player States
   const [activeQuiz, setActiveQuiz] = useState<{ questions: QuizQuestion[], assessmentId: string } | null>(null)
   const [startingId, setStartingId] = useState<string | null>(null) // Tracks which test is currently loading
+  const [deletingAssessmentId, setDeletingAssessmentId] = useState<string | null>(null)
 
   const loadShares = async (attemptId: string) => {
     const response = await fetch(`/api/attempts/${attemptId}/share`)
@@ -299,6 +301,21 @@ export function PerformanceSidebar({
       console.error("Error starting assessment:", error)
     } finally {
       setStartingId(null)
+    }
+  }
+
+  const handleDeleteFailedAssessment = async (assessmentId: string) => {
+    setDeletingAssessmentId(assessmentId)
+    try {
+      const response = await fetch(`/api/assessments/${assessmentId}`, { method: "DELETE" })
+      const result = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(result.error || "Failed to delete failed generation")
+      setAssessments((current) => current.filter((assessment) => assessment.id !== assessmentId))
+      toast.success("Failed generation deleted")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete failed generation")
+    } finally {
+      setDeletingAssessmentId(null)
     }
   }
 
@@ -574,7 +591,17 @@ export function PerformanceSidebar({
                       {(!assessment.status || assessment.status === "ready") && `${timeAgo(assessment.created_at)} · ${assessment.test_type || "Assessment"}`}
                     </p>
                   </div>
-                  {assessment.status === "generating" ? null : assessment.status === "failed" ? null : <Button
+                  {assessment.status === "failed" ? <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete failed generation ${assessment.title}`}
+                    title="Delete failed generation"
+                    onClick={() => void handleDeleteFailedAssessment(assessment.id)}
+                    disabled={deletingAssessmentId === assessment.id}
+                  >
+                    {deletingAssessmentId === assessment.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button> : assessment.status === "generating" ? null : <Button
                     variant="outline" 
                     className="shrink-0 gap-1.5 px-3"
                     onClick={() => handleStartAssessment(assessment.id)}

@@ -26,6 +26,7 @@ import { toast } from "sonner"
 
 const DEFAULT_NUM_QUESTIONS = 5
 const MAX_NUM_QUESTIONS = 15
+const ALLOWED_FILE_EXTENSIONS = new Set(["pdf", "docx", "pptx"])
 
 const testTypes = ["Multiple Choice"]
 
@@ -50,7 +51,9 @@ interface CanvasFile {
 
 interface ModuleMaterial {
   id: string | number
+  content_id?: number | string
   material_id?: string
+  filename?: string
   title?: string
   name?: string
   type?: string
@@ -59,6 +62,21 @@ interface ModuleMaterial {
   content_type?: string
   created_at?: string
   size?: number
+}
+
+function getSupportedFileName(fileName: string | undefined, url: string | undefined) {
+  const candidate = fileName?.trim() || ""
+  const urlFileName = (() => {
+    if (!url) return ""
+    try {
+      return decodeURIComponent(new URL(url).pathname.split("/").pop() || "")
+    } catch {
+      return ""
+    }
+  })()
+  const name = /\.(pdf|docx|pptx)$/i.test(candidate) ? candidate : urlFileName
+  const extension = name.split(".").pop()?.toLowerCase() || ""
+  return ALLOWED_FILE_EXTENSIONS.has(extension) ? name : null
 }
 
 export function GenerateTestCard() {
@@ -144,34 +162,33 @@ export function GenerateTestCard() {
       setError(null)
       setAvailableFiles([])
 
-      const [response, materialsResponse] = await Promise.all([
-        fetch(`/api/lms/modules/${course.id}`, { cache: "no-store" }),
-        fetch(`/api/materials?course_id=${encodeURIComponent(course.id)}`, { cache: "no-store" }),
-      ])
+      const response = await fetch(`/api/lms/modules/${course.id}?include_file_metadata=1`, { cache: "no-store" })
       const data = response.ok
         ? await response.json() as { modules?: Array<{ items?: ModuleMaterial[] }> }
         : { modules: [] }
-      const materials = materialsResponse.ok
-        ? await materialsResponse.json() as Array<{ id: string; title: string; file_url: string | null; content_type: string | null; source?: string }>
-        : []
 
-      // Extract files from modules/items
+      // Only Canvas module File attachments in the supported document formats.
       const files: CanvasFile[] = []
       if (data.modules) {
         data.modules.forEach((module) => {
           if (module.items) {
             module.items.forEach((item) => {
-              // Filter for document types (PDF, PowerPoint, Word, etc.)
-              if (item.type === "File" || item.material_id) {
+              const fileId = item.content_id
+              const isCanvasFileId =
+                (typeof fileId === "number" && Number.isSafeInteger(fileId) && fileId > 0) ||
+                (typeof fileId === "string" && /^\d+$/.test(fileId))
+              const url = item.url || item.html_url || ""
+              const filename = getSupportedFileName(item.filename || item.title || item.name, url)
+              if (item.type === "File" && isCanvasFileId && url && filename) {
                 files.push({
-                  id: item.material_id || item.id,
-                  display_name: item.title || item.name || "Untitled",
-                  filename: item.title || item.name || "Untitled",
-                  url: item.url || item.html_url || "",
+                  id: fileId,
+                  display_name: item.title || filename,
+                  filename,
+                  url,
                   content_type: item.content_type,
                   created_at: item.created_at,
                   size: item.size,
-                  source: item.type === "File" ? "lms" : "local",
+                  source: "lms",
                 })
               }
             })
@@ -179,23 +196,10 @@ export function GenerateTestCard() {
         })
       }
 
-      const listedMaterialIds = new Set(files.map((file) => String(file.id)))
-      for (const material of materials) {
-        if (!material.file_url || listedMaterialIds.has(material.id) || material.content_type === "deadline") continue
-        files.push({
-          id: material.id,
-          display_name: material.title,
-          filename: material.title,
-          url: material.file_url,
-          content_type: material.content_type || undefined,
-          source: "local",
-        })
-      }
-
       setAvailableFiles(files)
 
       if (files.length === 0) {
-        toast.info("No files found in this course")
+        toast.info("No supported Canvas PDF, DOCX, or PPTX attachments found in this course")
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to fetch course files"
@@ -256,7 +260,7 @@ export function GenerateTestCard() {
             if (fileId) url.pathname = `/files/${fileId}/download`
             url.search = "?download_frd=1"
           }
-          return { filename: file.display_name || file.filename || "course-material", url: url.toString() }
+          return { filename: file.filename || file.display_name || "course-material", url: url.toString() }
         }),
 
         // files: selectedFiles.map((f) => ({
@@ -381,16 +385,16 @@ export function GenerateTestCard() {
                 <Download className="mr-2 h-4 w-4" />
                 {isMounted && selectedFiles.length > 0
                   ? `${selectedFiles.length} file(s) selected`
-                  : "Select Files for Assessment"}
+                  : "Choose Canvas Files for Assessment"}
               </Button>
             }>
             </DialogTrigger>
 
             <DialogContent className="max-w-xl">
               <DialogHeader>
-                <DialogTitle>Select Files</DialogTitle>
+                <DialogTitle>Select Canvas Attachments</DialogTitle>
                 <DialogDescription>
-                  Choose which files to include in the assessment generation.
+                  Choose Canvas PDF, DOCX, or PPTX attachments for the assessment.
                 </DialogDescription>
               </DialogHeader>
 
@@ -403,7 +407,7 @@ export function GenerateTestCard() {
                   <div className="space-y-3">
                     {availableFiles.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-8 text-center">
-                        No files available in this course
+                        No supported Canvas PDF, DOCX, or PPTX attachments found in this course
                       </p>
                     ) : (
                       availableFiles.map((file) => {
