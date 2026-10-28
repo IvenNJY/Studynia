@@ -63,3 +63,21 @@ export async function PATCH(_request: Request, { params }: { params: Promise<{ c
 	if (error) return NextResponse.json({ error: "Failed to mark messages read" }, { status: 500 })
 	return NextResponse.json({ success: true })
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ conversationId: string }> }) {
+	const user = await getUser()
+	const { conversationId } = await params
+	if (!user) return NextResponse.json({ error: "Auth session missing" }, { status: 401 })
+	if (!await isParticipant(conversationId, user.id)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+	const body = await request.json() as { id?: string }
+	if (!body.id) return NextResponse.json({ error: "Message id is required" }, { status: 400 })
+
+	const { error } = await admin()
+		.from("chat_messages")
+		.delete()
+		.eq("id", body.id)
+		.eq("conversation_id", conversationId)
+		.eq("sender_id", user.id)
+	if (error) return NextResponse.json({ error: "Failed to delete message" }, { status: 500 })
+	return NextResponse.json({ success: true })
+}
