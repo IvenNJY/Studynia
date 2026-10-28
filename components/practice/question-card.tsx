@@ -181,9 +181,10 @@ export function GenerateTestCard() {
               const url = item.url || item.html_url || ""
               const filename = getSupportedFileName(item.filename || item.title || item.name, url)
               const isLocalMaterial = !course.lms_external_id && typeof item.material_id === "string"
-              if (url && filename && (isLocalMaterial || (item.type === "File" && isCanvasFileId))) {
+              const pickerFileId = isLocalMaterial ? item.material_id : isCanvasFileId ? fileId : undefined
+              if (url && filename && pickerFileId !== undefined && (isLocalMaterial || item.type === "File")) {
                 files.push({
-                  id: isLocalMaterial ? item.material_id! : fileId,
+                  id: pickerFileId,
                   material_id: isLocalMaterial ? item.material_id : undefined,
                   display_name: item.title || filename,
                   filename,
