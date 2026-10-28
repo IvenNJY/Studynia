@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { MessageCircle, Send, UserRound } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Loader2, MessageCircle, Send, Trash2, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,10 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
   const [messages, setMessages] = useState<Message[]>([])
   const [currentUserId, setCurrentUserId] = useState("")
   const [draft, setDraft] = useState("")
+  const [isSending, setIsSending] = useState(false)
+  const sendingRef = useRef(false)
+  const [pendingDelete, setPendingDelete] = useState<{ message: Message; conversationId: string } | null>(null)
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false)
   const [attemptId, setAttemptId] = useState(initialAttemptId || "")
   const [search, setSearch] = useState("")
   const [error, setError] = useState("")
@@ -84,18 +88,53 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault()
-    if (!selectedId || !draft.trim()) return
+    if (sendingRef.current || !selectedId || !draft.trim()) return
+    const conversationId = selectedId
+    const messageBody = draft
+    sendingRef.current = true
+    setIsSending(true)
     setError("")
-    const response = await fetch(`/api/chat/${selectedId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: draft, attemptId: attemptId || null }) })
-    if (!response.ok) {
-      const result = await response.json().catch(() => null) as { error?: string } | null
-      setError(result?.error || "Could not send message")
-      return
+    try {
+      const response = await fetch(`/api/chat/${conversationId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: messageBody, attemptId: attemptId || null }) })
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null
+        throw new Error(result?.error || "Could not send message")
+      }
+      setDraft("")
+      setAttemptId("")
+      await loadMessages(conversationId)
+      await loadConversations()
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "Could not send message")
+    } finally {
+      sendingRef.current = false
+      setIsSending(false)
     }
-    setDraft("")
-    setAttemptId("")
-    await loadMessages(selectedId)
-    await loadConversations()
+  }
+
+  async function deleteMessage() {
+    if (!pendingDelete || isDeletingMessage) return
+    setIsDeletingMessage(true)
+    setError("")
+    try {
+      const { message, conversationId } = pendingDelete
+      const response = await fetch(`/api/chat/${conversationId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: message.id }),
+      })
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null
+        throw new Error(result?.error || "Could not delete message")
+      }
+      setMessages((current) => current.filter((item) => item.id !== message.id))
+      setPendingDelete(null)
+      await loadConversations()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Could not delete message")
+    } finally {
+      setIsDeletingMessage(false)
+    }
   }
 
   async function viewAttempt(attemptId: string) {
@@ -159,7 +198,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
               <div key={message.id} className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.sender_id === currentUserId ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
                 <p className="whitespace-pre-wrap">{message.body}</p>
                 {message.attempt_id && <button type="button" onClick={() => void viewAttempt(message.attempt_id!)} className="mt-2 block text-left text-xs underline">View attached attempt</button>}
-                <p className="mt-1 text-[10px] opacity-70">{formatTime(message.created_at)}</p>
+                <div className="mt-1 flex items-center justify-between gap-4"><p className="text-[10px] opacity-70">{formatTime(message.created_at)}</p>{message.sender_id === currentUserId && <button type="button" onClick={() => setPendingDelete({ message, conversationId: selectedId })} aria-label="Delete message" title="Delete message" className="rounded p-1 opacity-70 hover:bg-black/10 hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
               </div>
             ))
           )}
@@ -169,14 +208,30 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
         
         <form onSubmit={sendMessage} className="flex gap-2 border-t p-4 shrink-0">
           <div className="flex flex-1 flex-col gap-1">
-            <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected} maxLength={4000} />
+            <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected || isSending} maxLength={4000} />
             {attemptId && <p className="text-[10px] text-primary">Assessment attempt attached. The next message will include it for feedback context.</p>}
           </div>
-          <Button type="submit" disabled={!selected || !draft.trim()} size="icon" aria-label="Send message" className="cursor-pointer">
-            <Send />
+          <Button type="submit" disabled={!selected || !draft.trim() || isSending} size="icon" aria-label={isSending ? "Sending message" : "Send message"} className="cursor-pointer">
+            {isSending ? <Loader2 className="animate-spin" /> : <Send />}
           </Button>
         </form>
       </Card>
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => { if (!open && !isDeletingMessage) setPendingDelete(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this message?</DialogTitle>
+            <DialogDescription>This will permanently remove your message from the conversation.</DialogDescription>
+          </DialogHeader>
+          {pendingDelete && <p className="max-h-24 overflow-y-auto rounded-md bg-muted p-3 text-sm">{pendingDelete.message.body}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setPendingDelete(null)} disabled={isDeletingMessage}>Cancel</Button>
+            <Button type="button" variant="destructive" onClick={() => void deleteMessage()} disabled={isDeletingMessage}>
+              {isDeletingMessage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete message
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!attemptDetails || attemptLoading || !!attemptError} onOpenChange={(open) => { if (!open) { setAttemptDetails(null); setAttemptError("") } }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
