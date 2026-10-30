@@ -24,7 +24,7 @@ export default function AuthLayout({
 }>) {
   return (
     <main className="relative isolate grid min-h-svh overflow-hidden bg-background text-foreground lg:grid-cols-2">
-      <div aria-hidden="true" className="pointer-events-none absolute -left-40 -top-44 -z-10 h-[34rem] w-[34rem] rounded-full bg-primary/10 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -left-40 -top-44 -z-10 h-[34rem] w-[30rem] rounded-full bg-primary/10 blur-3xl" />
 
       <aside className="relative hidden flex-col justify-between border-r border-border/70 bg-muted/20 px-10 py-10 lg:flex xl:px-16">
         <Brand />

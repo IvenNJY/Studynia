@@ -231,7 +231,7 @@ export async function POST() {
     // Return the complete persisted list, including existing courses when there are no additions.
     const { data: syncedCourses, error: syncedCoursesError } = await supabaseAdmin
       .from("courses")
-      .select("id, course_name, course_code, description, created_at")
+      .select("id, lms_external_id, course_name, course_code, description, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 

@@ -4,14 +4,14 @@ export function ModuleProficiency({ stats }: {
   stats: { mastered: number, reviewing: number, inProgress: number } 
 }) {
   const segments = [
-    { label: "Mastered", value: stats.mastered, color: "hsl(var(--chart-1))" },
-    { label: "Reviewing", value: stats.reviewing, color: "hsl(var(--chart-2))" },
-    { label: "In progress", value: stats.inProgress, color: "hsl(var(--chart-3))" },
+    { label: "Mastered", value: stats.mastered, color: "var(--chart-1)" },
+    { label: "Reviewing", value: stats.reviewing, color: "var(--chart-2)" },
+    { label: "In progress", value: stats.inProgress, color: "var(--chart-3)" },
   ]
   const total = segments.reduce((sum, segment) => sum + segment.value, 0)
   let offset = 0
   const gradient = total === 0
-    ? "hsl(var(--muted)) 0 100%"
+    ? "var(--muted) 0% 100%"
     : segments.map((segment) => {
       const start = (offset / total) * 100
       offset += segment.value
@@ -19,15 +19,20 @@ export function ModuleProficiency({ stats }: {
     }).join(", ")
 
   return (
-    <Card className="shadow-none border-border/50 border bg-muted/30 sm:p-2 h-full flex flex-col">
+    <Card className="shadow-none border-border/50 border bg-card sm:p-2 h-full flex flex-col">
       <CardHeader className="pb-6">
         <CardTitle className="text-[1.1rem] font-medium text-foreground">
           Module Proficiency
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
-        <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
-          <div className="absolute inset-8 flex items-center justify-center rounded-full bg-muted/30 text-center">
+        <div
+          role="img"
+          aria-label={`Module proficiency: ${stats.mastered} mastered, ${stats.reviewing} reviewing, ${stats.inProgress} in progress`}
+          className="relative h-40 w-40 shrink-0 rounded-full"
+          style={{ background: `conic-gradient(${gradient})` }}
+        >
+          <div className="absolute inset-8 flex items-center justify-center rounded-full bg-card text-center">
             <div>
               <div className="text-2xl font-black text-foreground">{total}</div>
               <div className="text-[10px] font-bold tracking-wider text-muted-foreground">MATERIALS</div>

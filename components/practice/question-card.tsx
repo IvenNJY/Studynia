@@ -119,9 +119,11 @@ export function GenerateTestCard() {
         } catch {
           // Keep saved local courses available when the LMS cannot be reached.
         }
+        const localCourseById = new Map(localCourses.map((course) => [course.id, course]))
         setCourses(
           Array.from(new Map(syncedCourses.map((course) => [course.id, course])).values()).map((course) => ({
             ...course,
+            lms_external_id: course.lms_external_id ?? localCourseById.get(course.id)?.lms_external_id,
             term: course.term || course.description || "Unknown",
           }))
         )
@@ -255,7 +257,6 @@ export function GenerateTestCard() {
         title: `Assessment for ${selectedCourse.course_name}`,
         num_questions: Math.min(MAX_NUM_QUESTIONS, Math.max(1, Number(numQuestions) || DEFAULT_NUM_QUESTIONS)),
 
-        // Instantly transform the Canvas API URLs into download links
         files: selectedFiles.map((file) => {
           const url = new URL(file.url)
           const canvasFile = file.source !== "local" && url.pathname.includes("/files/")

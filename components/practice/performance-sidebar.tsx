@@ -647,7 +647,7 @@ export function PerformanceSidebar({
           <DialogHeader>
             <DialogTitle>Share assessment results</DialogTitle>
             <DialogDescription>
-              Allow another StudyNia user to view the results for {shareAttempt?.assessments?.title || "this assessment"}.
+              Allow another Studynia user to view the results for {shareAttempt?.assessments?.title || "this assessment"}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -672,7 +672,7 @@ export function PerformanceSidebar({
                 <p className="text-sm text-muted-foreground">Not shared with anyone yet.</p>
               ) : shares.map((share) => (
                 <div key={share.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <span>{share.profiles?.full_name || "StudyNia user"}</span>
+                  <span>{share.profiles?.full_name || "Studynia user"}</span>
                   <Button variant="ghost" size="icon" aria-label="Remove access" onClick={() => void removeShare(share.shared_with_id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
