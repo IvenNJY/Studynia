@@ -7,14 +7,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
         <SidebarInset>
-        <header className="flex h-16 items-center gap-2 border-b px-4 w-full fixed bg-white z-10">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 w-full sticky top-0 bg-background z-10">
           <SidebarTrigger className="-ml-1 " /> {/* Optional trigger for mobile/collapsible view */}
           {/* ... other header content */}
         </header>
-        <main className="p-4 flex justify-center w-full m-auto">
-          <Toaster position="top-center" />
+        <main className="p-4 md:p-6 lg:p-8 flex justify-center w-full">
           {children}
         </main>
+        <Toaster />
         </SidebarInset>
     </SidebarProvider>
   )

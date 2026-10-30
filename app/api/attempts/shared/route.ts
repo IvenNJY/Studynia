@@ -49,7 +49,7 @@ export async function GET() {
   for (const attempt of normalizedAttempts) {
     const current: { id: string; name: string; attempts: SharedAttempt[] } = grouped.get(attempt.user_id) ?? {
       id: attempt.user_id,
-      name: names.get(attempt.user_id) || "StudyNia user",
+      name: names.get(attempt.user_id) || "Studynia user",
       attempts: [],
     }
     current.attempts.push(attempt)

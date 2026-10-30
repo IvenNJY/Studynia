@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
   const { data: users, error: usersError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
   if (usersError) return NextResponse.json({ error: "Failed to find user" }, { status: 500 })
   const recipient = users.users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail)
-  if (!recipient || recipient.id === user.id) return NextResponse.json({ error: "No other StudyNia user was found with that email" }, { status: 404 })
+  if (!recipient || recipient.id === user.id) return NextResponse.json({ error: "No other Studynia user was found with that email" }, { status: 404 })
   const { error } = await supabase.from("assessment_shares").upsert({ attempt_id: attemptId, shared_with_id: recipient.id }, { onConflict: "attempt_id,shared_with_id" })
   if (error) return NextResponse.json({ error: "Failed to share assessment" }, { status: 500 })
   const { error: notificationError } = await supabase.from("inbox_notifications").insert({

@@ -5,13 +5,13 @@ import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem } 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
 import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3, MessageCircle, Inbox, Star } from "lucide-react";
 import { createClient } from "@/lib/client";
 
 const supabase = createClient();
 import type { Role } from "@/lib/authorization";
+import { ThemeSwitcher } from "./theme-switcher";
 
 export const navData: NavItem[] = [
   // These links are hidden for other roles, but their pages must still use requireRole.
@@ -234,12 +234,13 @@ export function AppSidebar() {
               <div className="flex w-full items-center justify-between gap-2">
               <a href="/home" className="flex h-full items-center gap-2">
                 <img src="/logo 1.png" alt="Logo" className="w-10 h-10" /> 
-                <span>StudyNia</span>
+                <span>Studynia</span>
               </a>
-              <a href="/chat" aria-label={`Chat${unreadCount ? `, ${unreadCount} unread messages` : ""}`} className="relative rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              {/* <a href="/chat" aria-label={`Chat${unreadCount ? `, ${unreadCount} unread messages` : ""}`} className="relative rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                 <MessageCircle className="h-4 w-4" />
                 {!!unreadCount && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[9px] font-semibold text-primary-foreground">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-              </a>
+              </a> */}
+              {/* <ThemeSwitcher /> */}
               </div>
             </SidebarMenuItem>
           </SidebarMenu>
