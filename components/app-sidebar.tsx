@@ -5,7 +5,6 @@ import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem } 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Logo from "@/assets/logo/logo";
 import { NavItem, NavMain } from "@/components/nav-main";
 import { AlignStartVertical, PieChart, CircleUserRound, ClipboardList, Notebook, User, NotepadText, Table, Languages, Ticket, Trash, FileQuestionMark, CircleQuestionMarkIcon, Folders, Plus, BarChart3, MessageCircle, Inbox, Star } from "lucide-react";
 import { createClient } from "@/lib/client";
