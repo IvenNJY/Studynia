@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/server'
-import { StudyHabitInsight } from '@/components/ui/performance'
 import { PerformanceDashboard } from '@/components/ui/performance/PerformanceDashboard' // Our new client wrapper
 
 export default async function ProtectedPage() {
