@@ -11,6 +11,7 @@ import {
   FolderKanban,
   GraduationCap,
   LayoutGrid,
+  Loader2,
   MessageSquareMore,
   Users,
 } from "lucide-react"
@@ -471,6 +472,8 @@ export function FolderView({ courseId }: { courseId: string }) {
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [materialTitle, setMaterialTitle] = useState("")
   const [materialUrl, setMaterialUrl] = useState("")
+  const [isAddingMaterial, setIsAddingMaterial] = useState(false)
+  const addingMaterialRef = useRef(false)
 
   useEffect(() => {
     let isActive = true
@@ -552,7 +555,9 @@ export function FolderView({ courseId }: { courseId: string }) {
   }
 
   const handleAddMaterial = async () => {
-    if (!course?.id || !materialTitle.trim() || !materialUrl.trim()) return
+    if (addingMaterialRef.current || !course?.id || !materialTitle.trim() || !materialUrl.trim()) return
+    addingMaterialRef.current = true
+    setIsAddingMaterial(true)
     try {
       const response = await fetch("/api/materials", {
         method: "POST",
@@ -604,6 +609,9 @@ export function FolderView({ courseId }: { courseId: string }) {
       toast.success("Material added.")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save the material.")
+    } finally {
+      addingMaterialRef.current = false
+      setIsAddingMaterial(false)
     }
   }
 
@@ -727,19 +735,22 @@ export function FolderView({ courseId }: { courseId: string }) {
                   </div>
                 </div>
 
-                <Dialog open={showAddMaterial} onOpenChange={setShowAddMaterial}>
+                <Dialog open={showAddMaterial} onOpenChange={(open) => { if (!isAddingMaterial) setShowAddMaterial(open) }}>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Add material</DialogTitle>
                       <DialogDescription>Add a link to a course resource.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
-                      <Input value={materialTitle} onChange={(event) => setMaterialTitle(event.target.value)} placeholder="Material title" />
-                      <Input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} placeholder="File URL" type="url" />
+                      <Input value={materialTitle} onChange={(event) => setMaterialTitle(event.target.value)} placeholder="Material title" disabled={isAddingMaterial} />
+                      <Input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} placeholder="File URL" type="url" disabled={isAddingMaterial} />
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
-                      <Button onClick={() => void handleAddMaterial()} disabled={!materialTitle.trim() || !materialUrl.trim()}>Save material</Button>
+                      <Button variant="outline" onClick={() => setShowAddMaterial(false)} disabled={isAddingMaterial}>Cancel</Button>
+                      <Button onClick={() => void handleAddMaterial()} disabled={!materialTitle.trim() || !materialUrl.trim() || isAddingMaterial}>
+                        {isAddingMaterial && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isAddingMaterial ? "Saving..." : "Save material"}
+                      </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>

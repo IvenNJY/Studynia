@@ -5,7 +5,6 @@ export function ModuleProficiency({ stats }: {
 }) {
   const segments = [
     { label: "Mastered", value: stats.mastered, color: "var(--chart-1)" },
-    { label: "Reviewing", value: stats.reviewing, color: "var(--chart-2)" },
     { label: "In progress", value: stats.inProgress, color: "var(--chart-3)" },
   ]
   const total = segments.reduce((sum, segment) => sum + segment.value, 0)

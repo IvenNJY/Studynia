@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, GraduationCap, Folder, FolderPlus, RefreshCw, Settings } from "lucide-react"
+import { BookOpen, GraduationCap, Folder, FolderPlus, Loader2, RefreshCw, Settings } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -32,6 +32,8 @@ export function CourseList() {
   const [showAddCourse, setShowAddCourse] = useState(false)
   const [newCourseName, setNewCourseName] = useState("")
   const [newCourseSemester, setNewCourseSemester] = useState("")
+  const [isAddingCourse, setIsAddingCourse] = useState(false)
+  const addingCourseRef = useRef(false)
 
   const semesters = useMemo(() => {
     const terms = courses.map((c) => c.description || "Unknown Term")
@@ -127,7 +129,9 @@ export function CourseList() {
   }
 
   const handleAddCourse = async () => {
-    if (!newCourseName.trim()) return
+    if (addingCourseRef.current || !newCourseName.trim()) return
+    addingCourseRef.current = true
+    setIsAddingCourse(true)
     try {
       const response = await fetch("/api/courses", {
         method: "POST",
@@ -146,6 +150,9 @@ export function CourseList() {
       toast.success("Course added.")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add the course.")
+    } finally {
+      addingCourseRef.current = false
+      setIsAddingCourse(false)
     }
   }
 
@@ -182,7 +189,7 @@ export function CourseList() {
         </div>
       </div>
 
-      <Dialog open={showAddCourse} onOpenChange={setShowAddCourse}>
+      <Dialog open={showAddCourse} onOpenChange={(open) => { if (!isAddingCourse) setShowAddCourse(open) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add course</DialogTitle>
@@ -194,17 +201,22 @@ export function CourseList() {
               onChange={(event) => setNewCourseName(event.target.value)}
               placeholder="Course name"
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              disabled={isAddingCourse}
             />
             <input
               value={newCourseSemester}
               onChange={(event) => setNewCourseSemester(event.target.value)}
               placeholder="Semester (e.g. Fall 2026)"
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              disabled={isAddingCourse}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddCourse(false)}>Cancel</Button>
-            <Button onClick={handleAddCourse} disabled={!newCourseName.trim() || loading}>Save course</Button>
+            <Button variant="outline" onClick={() => setShowAddCourse(false)} disabled={isAddingCourse}>Cancel</Button>
+            <Button onClick={handleAddCourse} disabled={!newCourseName.trim() || isAddingCourse}>
+              {isAddingCourse && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isAddingCourse ? "Saving..." : "Save course"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
