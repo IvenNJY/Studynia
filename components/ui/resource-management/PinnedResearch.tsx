@@ -161,7 +161,7 @@ export function PinnedResearch() {
 
       <div className="space-y-3">
         {isLoading ? [1, 2].map((item) => <Skeleton key={item} className="h-28 w-full rounded-xl" />) : visibleResearch.map((item) => (
-          <Card key={item.id} className="group shadow-sm border-muted/50 bg-background/50 hover:bg-muted/30 transition-colors">
+          <Card key={item.id} className="group shadow-sm border-muted/50 bg-card hover:outline-1 transition-colors">
             <CardContent className="p-4 flex flex-col gap-2">
               <div className="flex items-start justify-between gap-3">
                 <a href={item.link ?? "#"} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
