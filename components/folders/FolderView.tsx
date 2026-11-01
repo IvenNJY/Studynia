@@ -54,7 +54,7 @@ type Module = {
 
 type CourseDetail = {
   id: string
-  lms_external_id: string
+  lms_external_id?: string | null
   course_name: string
   course_code: string
   description: string
@@ -318,7 +318,7 @@ function CourseHeader({
       </div>
 
       <div className="flex flex-col gap-3 md:w-fit">
-      {!course?.lms_external_id && <div className="flex justify-end gap-2">
+      {!course?.lms_external_id?.trim() && <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onEditCourse}><Pencil className="mr-2 h-4 w-4" />Edit course</Button>
         <Button variant="outline" size="sm" onClick={onDeleteCourse}><Trash2 className="mr-2 h-4 w-4 text-destructive" />Delete course</Button>
       </div>}
