@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/server"
+import { decryptChatMessage, encryptChatMessage, isEncryptedChatMessage } from "@/lib/chat-encryption"
 
 const admin = () => createAdminClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,17 +28,52 @@ export async function GET() {
 	const conversationIds = (participants ?? []).map((item) => item.conversation_id)
 	if (!conversationIds.length) return NextResponse.json({ conversations: [], unreadCount: 0, userId: user.id })
 
-	const [{ data: otherParticipants }, { data: messages }] = await Promise.all([
-		supabase.from("chat_participants").select("conversation_id, user_id, profiles(id, full_name, role)").in("conversation_id", conversationIds).neq("user_id", user.id),
-		supabase.from("chat_messages").select("id, conversation_id, sender_id, body, attempt_id, created_at").in("conversation_id", conversationIds).order("created_at", { ascending: false }),
-	])
+	const { data: otherParticipants, error: otherParticipantsError } = await supabase.from("chat_participants")
+		.select("conversation_id, user_id, profiles(id, full_name, role)")
+		.in("conversation_id", conversationIds)
+		.neq("user_id", user.id)
+	if (otherParticipantsError) return NextResponse.json({ error: "Failed to load conversations" }, { status: 500 })
+
+	const messages: Array<{ id: string; conversation_id: string; sender_id: string; body: string; attempt_id: string | null; created_at: string }> = []
+	for (let offset = 0; ; offset += 1000) {
+		const { data: batch, error: batchError } = await supabase.from("chat_messages")
+			.select("id, conversation_id, sender_id, body, attempt_id, created_at")
+			.in("conversation_id", conversationIds)
+			.order("created_at", { ascending: true })
+			.order("id", { ascending: true })
+			.range(offset, offset + 999)
+		if (batchError) return NextResponse.json({ error: "Failed to load conversations" }, { status: 500 })
+		messages.push(...(batch ?? []))
+		if (!batch || batch.length < 1000) break
+	}
+
+	const decodedMessages: typeof messages = []
+	try {
+		for (let offset = 0; offset < messages.length; offset += 25) {
+			const batch = messages.slice(offset, offset + 25)
+			const decodedBatch = await Promise.all(batch.map(async (message) => {
+				const context = { conversationId: message.conversation_id, senderId: message.sender_id }
+				if (!isEncryptedChatMessage(message.body)) {
+					const ciphertext = encryptChatMessage(message.body, context)
+					const { error: migrationError } = await supabase.from("chat_messages").update({ body: ciphertext }).eq("id", message.id).eq("conversation_id", message.conversation_id)
+					if (migrationError) throw migrationError
+					return { ...message, body: message.body }
+				}
+				return { ...message, body: decryptChatMessage(message.body, context) }
+			}))
+			decodedMessages.push(...decodedBatch)
+		}
+	} catch (migrationError) {
+		console.error("Failed to decrypt or migrate chat messages:", migrationError)
+		return NextResponse.json({ error: "Could not decrypt chat messages. Check the server encryption key." }, { status: 500 })
+	}
 
 	const participantReads = new Map((participants ?? []).map((item) => [item.conversation_id, item.last_read_at]))
 	const latestByConversation = new Map<string, (typeof messages extends (infer T)[] | null ? T : never)>()
-	for (const message of messages ?? []) {
-		if (!latestByConversation.has(message.conversation_id)) latestByConversation.set(message.conversation_id, message)
+	for (const message of decodedMessages) {
+		latestByConversation.set(message.conversation_id, message)
 	}
-	const unreadCount = (messages ?? []).filter((message) => message.sender_id !== user.id && (!participantReads.get(message.conversation_id) || message.created_at > participantReads.get(message.conversation_id)!)).length
+	const unreadCount = decodedMessages.filter((message) => message.sender_id !== user.id && (!participantReads.get(message.conversation_id) || message.created_at > participantReads.get(message.conversation_id)!)).length
 	const conversations = conversationIds.map((id) => {
 		const other = (otherParticipants ?? []).find((item) => item.conversation_id === id)
 		const latest = latestByConversation.get(id)
