@@ -103,10 +103,12 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
         const result = await response.json().catch(() => null) as { error?: string } | null
         throw new Error(result?.error || "Could not send message")
       }
+      const data = await response.json() as { message?: Message | null }
       setDraft("")
       setAttemptId("")
-      await loadMessages(conversationId)
-      await loadConversations()
+      const sentMessage = data.message
+      if (sentMessage) setMessages((current) => [...current, sentMessage])
+      void loadConversations()
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Could not send message")
     } finally {
@@ -166,7 +168,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
 
   return (
     <div className="grid w-full max-w-full gap-6 lg:grid-cols-[1fr_2fr]">
-      <Card className="h-fit">
+      <Card className="h-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" /> Chat</CardTitle>
           <div className="relative">
@@ -183,7 +185,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
+        <CardContent className="space-y-1  overflow-auto">
           {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={`w-full rounded-lg p-3 text-left transition-colors cursor-pointer hover:bg-muted ${selectedId === conversation.id ? "bg-muted" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{conversation.otherUser.name}</span>{conversation.unread && <span className="h-2 w-2 rounded-full bg-primary" />}</div><p className="truncate text-xs text-muted-foreground">{conversation.latestMessage?.body || "No messages yet"}</p></button>)}
         </CardContent>
       </Card>
@@ -213,7 +215,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
           <div className="flex flex-1 flex-col gap-1">
             <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected || isSending} maxLength={2500} />
             {attemptId && <p className="text-[10px] text-primary">Assessment attempt attached. The next message will include it for feedback context.</p>}
-            <p className={`text-[10px] ${draftIsTooLong ? "text-destructive" : "text-muted-foreground"}`}>{draftByteLength.toLocaleString()} / {MAX_CHAT_MESSAGE_BYTES.toLocaleString()} bytes{draftIsTooLong ? " — shorten this message to send it." : ""}</p>
+            <p className={`text-[10px] ${draftIsTooLong ? "text-destructive" : "text-muted-foreground"}`}>{draftByteLength.toLocaleString()} / {MAX_CHAT_MESSAGE_BYTES.toLocaleString()} Characters{draftIsTooLong ? " — shorten this message to send it." : ""}</p>
           </div>
           <Button type="submit" disabled={!selected || !draft.trim() || draftIsTooLong || isSending} size="icon" aria-label={isSending ? "Sending message" : "Send message"} className="cursor-pointer">
             {isSending ? <Loader2 className="animate-spin" /> : <Send />}
