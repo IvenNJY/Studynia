@@ -16,6 +16,10 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Chat message encryption
+
+Chat message bodies are encrypted on the server with AES-256-GCM before they are written to Supabase. Configure `CHAT_ENCRYPTION_KEY` as a private server environment variable using a base64url-encoded 32-byte key. Generate one with `node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))'`. Use the same value on every server instance connected to the same database and keep a secure backup: losing the key makes encrypted chat messages unreadable. This is server-side encryption, not end-to-end encryption. Existing plaintext messages are encrypted when chat loads them after this feature is deployed.
+
 ### Background assessment generation
 
 The worker saves generated questions, assessment status, and the completion notification directly to Supabase. Configure `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as private environment variables on the worker service. The frontend reads assessment status from the database, so the app does not need a public callback URL and generation can finish while the user is on another page. Keep the service role key on the server and worker only; never expose it to browser code.

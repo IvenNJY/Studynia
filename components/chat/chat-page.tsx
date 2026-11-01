@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MAX_CHAT_MESSAGE_BYTES } from "@/lib/chat-constants"
 
 type User = { id: string; name: string }
 type Conversation = { id: string; otherUser: User; latestMessage: Message | null; unread: boolean }
@@ -36,6 +37,8 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
 
   const selected = conversations.find((conversation) => conversation.id === selectedId)
   const filteredUsers = useMemo(() => users.filter((user) => user.id !== currentUserId && user.name.toLowerCase().includes(search.toLowerCase())), [currentUserId, search, users])
+  const draftByteLength = new TextEncoder().encode(draft.trim()).length
+  const draftIsTooLong = draftByteLength > MAX_CHAT_MESSAGE_BYTES
 
   async function loadConversations() {
     const response = await fetch("/api/chat", { cache: "no-store" })
@@ -169,7 +172,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
           <div className="relative">
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a user" />
             {search.trim() && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 h-64 w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
                 {filteredUsers.length ? filteredUsers.map((user) => (
                   <button key={user.id} onClick={() => void startConversation(user.id)} className="flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm hover:bg-muted cursor-pointer">
                     <UserRound className="h-4 w-4 text-muted-foreground" />
@@ -195,8 +198,8 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Choose a user to start chatting.</div>
           ) : (
             messages.map((message) => (
-              <div key={message.id} className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.sender_id === currentUserId ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
-                <p className="whitespace-pre-wrap">{message.body}</p>
+              <div key={message.id} className={`min-w-0 max-w-[80%] overflow-hidden rounded-2xl px-4 py-3 text-sm ${message.sender_id === currentUserId ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.body}</p>
                 {message.attempt_id && <button type="button" onClick={() => void viewAttempt(message.attempt_id!)} className="mt-2 block text-left text-xs underline">View attached attempt</button>}
                 <div className="mt-1 flex items-center justify-between gap-4"><p className="text-[10px] opacity-70">{formatTime(message.created_at)}</p>{message.sender_id === currentUserId && <button type="button" onClick={() => setPendingDelete({ message, conversationId: selectedId })} aria-label="Delete message" title="Delete message" className="rounded p-1 opacity-70 hover:bg-black/10 hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
               </div>
@@ -208,10 +211,11 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
         
         <form onSubmit={sendMessage} className="flex gap-2 border-t p-4 shrink-0">
           <div className="flex flex-1 flex-col gap-1">
-            <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected || isSending} maxLength={4000} />
+            <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? "Write a message..." : "Select a conversation"} disabled={!selected || isSending} maxLength={2500} />
             {attemptId && <p className="text-[10px] text-primary">Assessment attempt attached. The next message will include it for feedback context.</p>}
+            <p className={`text-[10px] ${draftIsTooLong ? "text-destructive" : "text-muted-foreground"}`}>{draftByteLength.toLocaleString()} / {MAX_CHAT_MESSAGE_BYTES.toLocaleString()} bytes{draftIsTooLong ? " — shorten this message to send it." : ""}</p>
           </div>
-          <Button type="submit" disabled={!selected || !draft.trim() || isSending} size="icon" aria-label={isSending ? "Sending message" : "Send message"} className="cursor-pointer">
+          <Button type="submit" disabled={!selected || !draft.trim() || draftIsTooLong || isSending} size="icon" aria-label={isSending ? "Sending message" : "Send message"} className="cursor-pointer">
             {isSending ? <Loader2 className="animate-spin" /> : <Send />}
           </Button>
         </form>
