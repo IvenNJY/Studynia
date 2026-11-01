@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowDown, ArrowUp, BarChart3, BookOpen, Loader2, Search, TrendingUp, Users } from "lucide-react"
+import { ArrowDown, ArrowUp, BarChart3, BookOpen, ChevronLeft, ChevronRight, Loader2, Search, Users } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+
+const PAGE_SIZE = 10
 
 type StudentScore = {
 	id: string
@@ -58,6 +61,8 @@ export function SupervisorDashboard({ supervisorName }: { supervisorName: string
 	const [sortDescending, setSortDescending] = useState(true)
 	const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("averageScore")
 	const [courseSortDescending, setCourseSortDescending] = useState(true)
+	const [studentPage, setStudentPage] = useState(1)
+	const [coursePage, setCoursePage] = useState(1)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 
@@ -105,6 +110,11 @@ export function SupervisorDashboard({ supervisorName }: { supervisorName: string
 			return courseSortDescending ? -comparison : comparison
 		})
 	}, [courseSortDescending, courseSortKey, courseScores, search])
+
+	const studentPageCount = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE))
+	const coursePageCount = Math.max(1, Math.ceil(filteredCourses.length / PAGE_SIZE))
+	const visibleStudents = filteredStudents.slice((studentPage - 1) * PAGE_SIZE, studentPage * PAGE_SIZE)
+	const visibleCourses = filteredCourses.slice((coursePage - 1) * PAGE_SIZE, coursePage * PAGE_SIZE)
 
 	const scoredStudents = students.filter((student) => student.averageScore !== null)
 	const overallAverage = scoredStudents.length
@@ -169,18 +179,26 @@ export function SupervisorDashboard({ supervisorName }: { supervisorName: string
 				<CardHeader className="gap-4 border-b sm:flex-row sm:items-center sm:justify-between">
 					<CardTitle>Student scores</CardTitle>
 					<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-						<div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students or courses" className="pl-9 sm:w-64" /></div>
+						<div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setStudentPage(1); setCoursePage(1) }} placeholder="Search students or courses" className="pl-9 sm:w-64" /></div>
 						<Select value={sortKey} onValueChange={(value) => changeSort(value as SortKey)}><SelectTrigger className="sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="averageScore">Average score</SelectItem><SelectItem value="name">Student name</SelectItem><SelectItem value="attempts">Attempts</SelectItem><SelectItem value="courseCount">Courses</SelectItem><SelectItem value="lastActivityAt">Last activity</SelectItem></SelectContent></Select>
 					</div>
 				</CardHeader>
 				<CardContent className="p-0">
-					{loading ? <div className="flex justify-center p-10"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div> : <Table><TableHeader><TableRow><TableHead><button onClick={() => changeSort("name")}>Student {sortIndicator("name")}</button></TableHead><TableHead>Institution</TableHead><TableHead><button onClick={() => changeSort("averageScore")}>Average score {sortIndicator("averageScore")}</button></TableHead><TableHead><button onClick={() => changeSort("attempts")}>Attempts {sortIndicator("attempts")}</button></TableHead><TableHead><button onClick={() => changeSort("courseCount")}>Courses {sortIndicator("courseCount")}</button></TableHead><TableHead><button onClick={() => changeSort("lastActivityAt")}>Last activity {sortIndicator("lastActivityAt")}</button></TableHead></TableRow></TableHeader><TableBody>{filteredStudents.length === 0 ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No student records found.</TableCell></TableRow> : filteredStudents.map((student) => <TableRow key={student.id}><TableCell className="font-medium"><Link href={`/students/${student.id}`} className="hover:text-primary hover:underline">{student.name}</Link></TableCell><TableCell>{student.institutionName || "-"}</TableCell><TableCell className="font-semibold">{scoreLabel(student.averageScore)}</TableCell><TableCell>{student.attempts}</TableCell><TableCell>{student.courseCount}</TableCell><TableCell>{formatDate(student.lastActivityAt)}</TableCell></TableRow>)}</TableBody></Table>}
+					{loading ? <div className="flex justify-center p-10"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div> : <Table><TableHeader><TableRow><TableHead><button onClick={() => changeSort("name")}>Student {sortIndicator("name")}</button></TableHead><TableHead>Institution</TableHead><TableHead><button onClick={() => changeSort("averageScore")}>Average score {sortIndicator("averageScore")}</button></TableHead><TableHead><button onClick={() => changeSort("attempts")}>Attempts {sortIndicator("attempts")}</button></TableHead><TableHead><button onClick={() => changeSort("courseCount")}>Courses {sortIndicator("courseCount")}</button></TableHead><TableHead><button onClick={() => changeSort("lastActivityAt")}>Last activity {sortIndicator("lastActivityAt")}</button></TableHead></TableRow></TableHeader><TableBody>{filteredStudents.length === 0 ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No student records found.</TableCell></TableRow> : visibleStudents.map((student) => <TableRow key={student.id}><TableCell className="font-medium"><Link href={`/students/${student.id}`} className="hover:text-primary hover:underline">{student.name}</Link></TableCell><TableCell>{student.institutionName || "-"}</TableCell><TableCell className="font-semibold">{scoreLabel(student.averageScore)}</TableCell><TableCell>{student.attempts}</TableCell><TableCell>{student.courseCount}</TableCell><TableCell>{formatDate(student.lastActivityAt)}</TableCell></TableRow>)}</TableBody></Table>}
 				</CardContent>
+				<div className="flex items-center justify-between border-t px-4 py-3">
+					<p className="text-sm text-muted-foreground">{filteredStudents.length === 0 ? "No students" : `Showing ${(studentPage - 1) * PAGE_SIZE + 1}–${Math.min(studentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} students`}</p>
+					<div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => setStudentPage((page) => Math.max(1, page - 1))} disabled={studentPage <= 1}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><span className="text-sm text-muted-foreground">{studentPage} / {studentPageCount}</span><Button variant="outline" size="sm" onClick={() => setStudentPage((page) => Math.min(studentPageCount, page + 1))} disabled={studentPage >= studentPageCount}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div>
+				</div>
 			</Card>
 
 			<Card>
 				<CardHeader className="border-b"><CardTitle>Course breakdown</CardTitle><p className="text-sm text-muted-foreground">Select a course to review every student&apos;s performance.</p></CardHeader>
-				<CardContent className="p-0"><Table><TableHeader><TableRow><TableHead><button onClick={() => changeCourseSort("courseName")}>Course {courseSortIndicator("courseName")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("averageScore")}>Average score {courseSortIndicator("averageScore")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("attempts")}>Attempts {courseSortIndicator("attempts")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("lastActivityAt")}>Last activity {courseSortIndicator("lastActivityAt")}</button></TableHead></TableRow></TableHeader><TableBody>{filteredCourses.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No course score records found.</TableCell></TableRow> : filteredCourses.map((course) => <TableRow key={course.id}><TableCell className="font-medium"><Link href={`/students/courses/${course.id}`} className="hover:text-primary hover:underline">{course.courseCode ? `${course.courseCode} - ` : ""}{course.courseName}</Link></TableCell><TableCell className="font-semibold">{course.averageScore}%</TableCell><TableCell>{course.attempts}</TableCell><TableCell>{formatDate(course.lastActivityAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent>
+				<CardContent className="p-0"><Table><TableHeader><TableRow><TableHead><button onClick={() => changeCourseSort("courseName")}>Course {courseSortIndicator("courseName")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("averageScore")}>Average score {courseSortIndicator("averageScore")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("attempts")}>Attempts {courseSortIndicator("attempts")}</button></TableHead><TableHead><button onClick={() => changeCourseSort("lastActivityAt")}>Last activity {courseSortIndicator("lastActivityAt")}</button></TableHead></TableRow></TableHeader><TableBody>{filteredCourses.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No course score records found.</TableCell></TableRow> : visibleCourses.map((course) => <TableRow key={course.id}><TableCell className="font-medium"><Link href={`/students/courses/${course.id}`} className="hover:text-primary hover:underline">{course.courseCode ? `${course.courseCode} - ` : ""}{course.courseName}</Link></TableCell><TableCell className="font-semibold">{course.averageScore}%</TableCell><TableCell>{course.attempts}</TableCell><TableCell>{formatDate(course.lastActivityAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent>
+				<div className="flex items-center justify-between border-t px-4 py-3">
+					<p className="text-sm text-muted-foreground">{filteredCourses.length === 0 ? "No courses" : `Showing ${(coursePage - 1) * PAGE_SIZE + 1}–${Math.min(coursePage * PAGE_SIZE, filteredCourses.length)} of ${filteredCourses.length} courses`}</p>
+					<div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => setCoursePage((page) => Math.max(1, page - 1))} disabled={coursePage <= 1}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><span className="text-sm text-muted-foreground">{coursePage} / {coursePageCount}</span><Button variant="outline" size="sm" onClick={() => setCoursePage((page) => Math.min(coursePageCount, page + 1))} disabled={coursePage >= coursePageCount}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div>
+				</div>
 			</Card>
 		</div>
 	)

@@ -99,7 +99,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cour
 
 			const { data: localMaterials, error: localMaterialsError } = await supabaseAdmin
 				.from("materials")
-				.select("id, title, content_type, file_url, module_name")
+				.select("id, title, content_type, file_url, module_name, source")
 				.eq("user_id", user.id)
 				.eq("course_id", localCourse.id)
 				.order("created_at", { ascending: true })
@@ -127,6 +127,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cour
 					items: items.map((item, itemIndex) => ({
 						id: itemIndex + 1,
 						material_id: item.id,
+						material_source: item.source,
 						title: item.title,
 						type: item.content_type || "text",
 						html_url: item.file_url || undefined,
@@ -323,7 +324,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cour
 
 		const { data: persistedMaterials } = await supabaseAdmin
 			.from("materials")
-			.select("id, lms_external_id")
+			.select("id, lms_external_id, source")
 			.eq("user_id", user.id)
 			.eq("course_id", resolvedCourse?.id)
 
@@ -342,6 +343,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cour
 		const materialIdByExternalId = new Map(
 			(persistedMaterials ?? []).map((material) => [material.lms_external_id, material.id])
 		)
+		const materialSourceById = new Map((persistedMaterials ?? []).map((material) => [material.id, material.source]))
 
 		const modulesWithPersistence = modules.map((module) => ({
 			...module,
@@ -350,6 +352,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cour
 				return {
 					...item,
 					material_id: materialId,
+					material_source: materialId ? materialSourceById.get(materialId) : undefined,
 					viewed: materialId ? Boolean(progressByMaterialId.get(materialId)) : false,
 				}
 			}),
