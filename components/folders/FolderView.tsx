@@ -13,6 +13,8 @@ import {
   LayoutGrid,
   Loader2,
   MessageSquareMore,
+  Pencil,
+  Trash2,
   Users,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,6 +40,7 @@ type ModuleItem = {
   position: number
   material_id?: string
   viewed?: boolean
+  material_source?: string
 }
 
 type Module = {
@@ -51,7 +54,7 @@ type Module = {
 
 type CourseDetail = {
   id: string
-  lms_external_id: string
+  lms_external_id?: string | null
   course_name: string
   course_code: string
   description: string
@@ -122,12 +125,16 @@ function FolderModuleItem({
   isCompleted,
   onDragStart,
   onToggleCompletion,
+  onEditMaterial,
+  onDeleteMaterial,
 }: {
   item: ModuleItem
   moduleId: number
   isCompleted: boolean
   onDragStart: (e: React.DragEvent, itemId: number, moduleId: number) => void
   onToggleCompletion: (itemId: number) => void
+  onEditMaterial: (item: ModuleItem) => void
+  onDeleteMaterial: (item: ModuleItem) => void
 }) {
   const link = getItemLink(item)
   const iconKind = getItemIcon(item.type)
@@ -173,6 +180,11 @@ function FolderModuleItem({
         </div>
       </div>
 
+      <div className="flex shrink-0 items-center gap-1">
+      {item.material_id && item.material_source === "local" && <>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Edit ${item.title}`} onClick={() => onEditMaterial(item)} onPointerDown={(e) => e.stopPropagation()}><Pencil className="h-4 w-4" /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Delete ${item.title}`} onClick={() => onDeleteMaterial(item)} onPointerDown={(e) => e.stopPropagation()}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+      </>}
       {link ? (
         <a
           href={link}
@@ -189,6 +201,7 @@ function FolderModuleItem({
           In course
         </Badge>
       )}
+      </div>
     </div>
   )
 }
@@ -200,6 +213,8 @@ function ModuleCard({
   onDragStart,
   onDrop,
   onToggleCompletion,
+  onEditMaterial,
+  onDeleteMaterial,
 }: {
   module: Module
   index: number
@@ -207,6 +222,8 @@ function ModuleCard({
   onDragStart: (e: React.DragEvent, itemId: number, moduleId: number) => void
   onDrop: (e: React.DragEvent, moduleId: number) => void
   onToggleCompletion: (itemId: number) => void
+  onEditMaterial: (item: ModuleItem) => void
+  onDeleteMaterial: (item: ModuleItem) => void
 }) {
   return (
     <Card className="overflow-hidden border-muted/60 bg-background/90 shadow-sm">
@@ -254,6 +271,8 @@ function ModuleCard({
                 isCompleted={completedItems.has(item.id)}
                 onDragStart={onDragStart}
                 onToggleCompletion={onToggleCompletion}
+                onEditMaterial={onEditMaterial}
+                onDeleteMaterial={onDeleteMaterial}
               />
             ))
           ) : (
@@ -272,11 +291,15 @@ function CourseHeader({
   modulesCount,
   totalItems,
   progress,
+  onEditCourse,
+  onDeleteCourse,
 }: {
   course: CourseDetail | null
   modulesCount: number
   totalItems: number
   progress: number
+  onEditCourse: () => void
+  onDeleteCourse: () => void
 }) {
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -294,7 +317,12 @@ function CourseHeader({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 md:w-fit">
+      <div className="flex flex-col gap-3 md:w-fit">
+      {!course?.lms_external_id?.trim() && <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onEditCourse}><Pencil className="mr-2 h-4 w-4" />Edit course</Button>
+        <Button variant="outline" size="sm" onClick={onDeleteCourse}><Trash2 className="mr-2 h-4 w-4 text-destructive" />Delete course</Button>
+      </div>}
+      <div className="grid grid-cols-3 gap-3">
         <Card className="border-muted/50 bg-background/80 shadow-sm">
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-semibold text-foreground">{modulesCount}</p>
@@ -313,6 +341,7 @@ function CourseHeader({
             <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Complete</p>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   )
@@ -474,6 +503,18 @@ export function FolderView({ courseId }: { courseId: string }) {
   const [materialUrl, setMaterialUrl] = useState("")
   const [isAddingMaterial, setIsAddingMaterial] = useState(false)
   const addingMaterialRef = useRef(false)
+  const [showEditCourse, setShowEditCourse] = useState(false)
+  const [showDeleteCourse, setShowDeleteCourse] = useState(false)
+  const [isSavingCourse, setIsSavingCourse] = useState(false)
+  const [courseName, setCourseName] = useState("")
+  const [courseCode, setCourseCode] = useState("")
+  const [courseDescription, setCourseDescription] = useState("")
+  const [editingMaterial, setEditingMaterial] = useState<ModuleItem | null>(null)
+  const [deletingMaterial, setDeletingMaterial] = useState<ModuleItem | null>(null)
+  const [editMaterialTitle, setEditMaterialTitle] = useState("")
+  const [editMaterialUrl, setEditMaterialUrl] = useState("")
+  const [isSavingMaterial, setIsSavingMaterial] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -493,6 +534,9 @@ export function FolderView({ courseId }: { courseId: string }) {
         if (!isActive) return
 
         setCourse(payload.course || null)
+        setCourseName(payload.course?.course_name || "")
+        setCourseCode(payload.course?.course_code || "")
+        setCourseDescription(payload.course?.description || "")
 
         const notesResponse = await fetch(`/api/courses/${courseId}/notes`, { cache: "no-store" })
         if (notesResponse.ok && isActive) {
@@ -524,6 +568,72 @@ export function FolderView({ courseId }: { courseId: string }) {
       if (progressTimer.current) clearTimeout(progressTimer.current)
     }
   }, [courseId])
+
+  const saveCourse = async () => {
+    if (!course || !courseName.trim()) return
+    setIsSavingCourse(true)
+    try {
+      const response = await fetch(`/api/courses/${course.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ course_name: courseName, course_code: courseCode, description: courseDescription }) })
+      const payload = await response.json() as CourseDetail & { error?: string }
+      if (!response.ok) throw new Error(payload.error || "Could not update course")
+      setCourse((current) => current ? { ...current, ...payload } : current)
+      setShowEditCourse(false)
+      toast.success("Course updated.")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update course") }
+    finally { setIsSavingCourse(false) }
+  }
+
+  const deleteCourse = async () => {
+    if (!course) return
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/courses/${course.id}`, { method: "DELETE" })
+      const payload = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(payload.error || "Could not delete course")
+      window.location.assign("/resources")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete course")
+      setIsDeleting(false)
+      setShowDeleteCourse(false)
+    }
+  }
+
+  const beginEditMaterial = (item: ModuleItem) => {
+    setEditingMaterial(item)
+    setEditMaterialTitle(item.title)
+    setEditMaterialUrl(getItemLink(item) || "")
+  }
+
+  const saveMaterial = async () => {
+    if (!editingMaterial?.material_id || !editMaterialTitle.trim() || !editMaterialUrl.trim()) return
+    setIsSavingMaterial(true)
+    try {
+      const response = await fetch(`/api/materials/${editingMaterial.material_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: editMaterialTitle, file_url: editMaterialUrl }) })
+      const payload = await response.json() as { title?: string; file_url?: string; error?: string }
+      if (!response.ok) throw new Error(payload.error || "Could not update material")
+      setModules((current) => current.map((module) => ({ ...module, items: module.items.map((item) => item.material_id === editingMaterial.material_id ? { ...item, title: payload.title || item.title, html_url: payload.file_url || item.html_url } : item) })))
+      setEditingMaterial(null)
+      toast.success("Material updated.")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update material") }
+    finally { setIsSavingMaterial(false) }
+  }
+
+  const deleteMaterial = async () => {
+    if (!deletingMaterial?.material_id) return
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/materials/${deletingMaterial.material_id}`, { method: "DELETE" })
+      const payload = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(payload.error || "Could not delete material")
+      const materialId = deletingMaterial.material_id
+      const itemId = deletingMaterial.id
+      setModules((current) => current.map((module) => ({ ...module, items: module.items.filter((item) => item.material_id !== materialId) })))
+      setCompletedItems((current) => { const next = new Set(current); next.delete(itemId); return next })
+      setDeletingMaterial(null)
+      toast.success("Material deleted.")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete material") }
+    finally { setIsDeleting(false) }
+  }
 
   // Handlers
   const handleToggleCompletion = (itemId: number) => {
@@ -583,6 +693,7 @@ export function FolderView({ courseId }: { courseId: string }) {
             items: [{
               id: Date.now(),
               material_id: material.id,
+              material_source: "local",
               title: material.title,
               type: material.content_type,
               html_url: material.file_url,
@@ -595,6 +706,7 @@ export function FolderView({ courseId }: { courseId: string }) {
           ? { ...module, items: [...module.items, {
             id: Date.now(),
             material_id: material.id,
+            material_source: "local",
             title: material.title,
             type: material.content_type,
             html_url: material.file_url,
@@ -715,6 +827,8 @@ export function FolderView({ courseId }: { courseId: string }) {
             modulesCount={modules.length}
             totalItems={stats.totalItems}
             progress={stats.progress}
+            onEditCourse={() => setShowEditCourse(true)}
+            onDeleteCourse={() => setShowDeleteCourse(true)}
           />
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -755,6 +869,38 @@ export function FolderView({ courseId }: { courseId: string }) {
                   </DialogContent>
                 </Dialog>
 
+                <Dialog open={showEditCourse} onOpenChange={(open) => !isSavingCourse && setShowEditCourse(open)}>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Edit course</DialogTitle><DialogDescription>Update this course folder’s details.</DialogDescription></DialogHeader>
+                    <div className="space-y-3">
+                      <Input value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Course name" disabled={isSavingCourse} />
+                      <Input value={courseCode} onChange={(event) => setCourseCode(event.target.value)} placeholder="Course code" disabled={isSavingCourse} />
+                      <Input value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} placeholder="Description" disabled={isSavingCourse} />
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => setShowEditCourse(false)} disabled={isSavingCourse}>Cancel</Button><Button onClick={() => void saveCourse()} disabled={!courseName.trim() || isSavingCourse}>{isSavingCourse ? "Saving…" : "Save changes"}</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={showDeleteCourse} onOpenChange={(open) => !isDeleting && setShowDeleteCourse(open)}>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Delete this course?</DialogTitle><DialogDescription>This permanently removes “{course?.course_name}”. Course deletion may be blocked while linked records remain.</DialogDescription></DialogHeader>
+                    <DialogFooter><Button variant="outline" onClick={() => setShowDeleteCourse(false)} disabled={isDeleting}>Cancel</Button><Button variant="destructive" onClick={() => void deleteCourse()} disabled={isDeleting}>{isDeleting ? "Deleting…" : "Delete course"}</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={Boolean(editingMaterial)} onOpenChange={(open) => !isSavingMaterial && !open && setEditingMaterial(null)}>
+                  <DialogContent><DialogHeader><DialogTitle>Edit material</DialogTitle><DialogDescription>Update the title and resource link.</DialogDescription></DialogHeader>
+                    <div className="space-y-3"><Input value={editMaterialTitle} onChange={(event) => setEditMaterialTitle(event.target.value)} placeholder="Material title" disabled={isSavingMaterial} /><Input value={editMaterialUrl} onChange={(event) => setEditMaterialUrl(event.target.value)} placeholder="File URL" type="url" disabled={isSavingMaterial} /></div>
+                    <DialogFooter><Button variant="outline" onClick={() => setEditingMaterial(null)} disabled={isSavingMaterial}>Cancel</Button><Button onClick={() => void saveMaterial()} disabled={!editMaterialTitle.trim() || !editMaterialUrl.trim() || isSavingMaterial}>{isSavingMaterial ? "Saving…" : "Save changes"}</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={Boolean(deletingMaterial)} onOpenChange={(open) => !isDeleting && !open && setDeletingMaterial(null)}>
+                  <DialogContent><DialogHeader><DialogTitle>Delete this material?</DialogTitle><DialogDescription>“{deletingMaterial?.title}” will be permanently removed from this course folder.</DialogDescription></DialogHeader>
+                    <DialogFooter><Button variant="outline" onClick={() => setDeletingMaterial(null)} disabled={isDeleting}>Cancel</Button><Button variant="destructive" onClick={() => void deleteMaterial()} disabled={isDeleting}>{isDeleting ? "Deleting…" : "Delete material"}</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
                 <div className="space-y-4">
                   {modules.length === 0 ? (
                     <Card className="border-dashed bg-muted/20">
@@ -776,6 +922,8 @@ export function FolderView({ courseId }: { courseId: string }) {
                         onDragStart={handleDragStart}
                         onDrop={handleDrop}
                         onToggleCompletion={handleToggleCompletion}
+                        onEditMaterial={beginEditMaterial}
+                        onDeleteMaterial={setDeletingMaterial}
                       />
                     ))
                   )}
