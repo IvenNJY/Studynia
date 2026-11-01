@@ -198,7 +198,7 @@ export function ChatPage({ initialConversationId, initialAttemptId }: { initialC
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Choose a user to start chatting.</div>
           ) : (
             messages.map((message) => (
-              <div key={message.id} className={`min-w-0 max-w-[80%] overflow-hidden rounded-2xl px-4 py-3 text-sm ${message.sender_id === currentUserId ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
+              <div key={message.id} className={`max-w-[80%]  rounded-2xl px-4 py-3 text-sm ${message.sender_id === currentUserId ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
                 <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.body}</p>
                 {message.attempt_id && <button type="button" onClick={() => void viewAttempt(message.attempt_id!)} className="mt-2 block text-left text-xs underline">View attached attempt</button>}
                 <div className="mt-1 flex items-center justify-between gap-4"><p className="text-[10px] opacity-70">{formatTime(message.created_at)}</p>{message.sender_id === currentUserId && <button type="button" onClick={() => setPendingDelete({ message, conversationId: selectedId })} aria-label="Delete message" title="Delete message" className="rounded p-1 opacity-70 hover:bg-black/10 hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
