@@ -26,8 +26,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, user, canEdit } = await authorizedNote(id)
+
   if (!user) return NextResponse.json({ error: "Auth session missing" }, { status: 401 })
+
   const body = await request.json() as { favorite?: boolean; tag?: string; tagId?: string; courseId?: string | null }
+
   if (typeof body.favorite === "boolean") {
     const query = body.favorite
       ? supabase.from("note_favorites").upsert({ user_id: user.id, note_id: id })
@@ -35,17 +38,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { error } = await query
     if (error) return NextResponse.json({ error: "Failed to update favorite" }, { status: 500 })
   }
+
   if (body.tag?.trim() || body.tagId) {
     if (!canEdit) return NextResponse.json({ error: "Only note editors can change tags" }, { status: 403 })
+
     const { data: note } = await supabase.from("notes").select("course_id").eq("id", id).maybeSingle()
     const courseId = body.courseId ?? note?.course_id ?? null
+
     if (courseId) {
       const { data: course } = await supabase.from("courses").select("id").eq("id", courseId).eq("user_id", user.id).maybeSingle()
       if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 })
     }
+  
     const { data: tag, error: tagError } = body.tagId
       ? await supabase.from("note_tags").update({ course_id: courseId, name: body.tag?.trim() }).eq("id", body.tagId).eq("user_id", user.id).select("id, name, course_id").single()
-      : await supabase.from("note_tags").upsert({ user_id: user.id, name: body.tag!.trim(), course_id: courseId }, { onConflict: "user_id,name" }).select("id, name, course_id").single()
+      : await supabase.from("note_tags").upsert({ user_id: user.id, name: body.tag!.trim(), course_id: courseId }
+      , { onConflict: "user_id,name" }).select("id, name, course_id").single()
     if (tagError || !tag) return NextResponse.json({ error: "Failed to create tag" }, { status: 500 })
     const { error } = await supabase.from("note_tag_links").upsert({ note_id: id, tag_id: tag.id })
     if (error) return NextResponse.json({ error: "Failed to tag note" }, { status: 500 })
@@ -56,11 +64,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, user, canEdit } = await authorizedNote(id)
+
   if (!user) return NextResponse.json({ error: "Auth session missing" }, { status: 401 })
   if (!canEdit) return NextResponse.json({ error: "Only note editors can remove tags" }, { status: 403 })
+
   const { tagId } = await request.json() as { tagId?: string }
+
   if (!tagId) return NextResponse.json({ error: "Tag id is required" }, { status: 400 })
+
   const { error } = await supabase.from("note_tag_links").delete().eq("note_id", id).eq("tag_id", tagId)
+
   if (error) return NextResponse.json({ error: "Failed to remove tag" }, { status: 500 })
   return NextResponse.json({ success: true })
 }

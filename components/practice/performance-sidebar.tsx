@@ -539,7 +539,7 @@ export function PerformanceSidebar({
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
                       <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {timeAgo(attempt.created_at)} · {difficulty}
+                        {timeAgo(attempt.created_at)}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">

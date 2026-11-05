@@ -10,6 +10,8 @@ type ResearchPayload = {
   display_name?: unknown
 }
 
+type ResearchId = string | number
+
 async function getAuthenticatedAdminClient() {
   const supabaseServer = await createServerClient()
   const { data: { user }, error } = await supabaseServer.auth.getUser()
@@ -44,6 +46,15 @@ function getValidatedFields(body: ResearchPayload) {
   }
 
   return { fields: { link, display_name: displayName } }
+}
+
+function getResearchId(value: unknown): ResearchId | null {
+  if (typeof value === "string") {
+    const id = value.trim()
+    return id ? id : null
+  }
+
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 export async function GET() {
@@ -103,10 +114,10 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json() as ResearchPayload
-  const id = typeof body.id === "string" ? body.id : ""
+  const id = getResearchId(body.id)
   const validation = getValidatedFields(body)
 
-  if (!id) {
+  if (id === null) {
     return NextResponse.json({ error: "Research id is required" }, { status: 400 })
   }
 
@@ -142,9 +153,9 @@ export async function DELETE(request: Request) {
   }
 
   const body = await request.json() as ResearchPayload
-  const id = typeof body.id === "string" ? body.id : ""
+  const id = getResearchId(body.id)
 
-  if (!id) {
+  if (id === null) {
     return NextResponse.json({ error: "Research id is required" }, { status: 400 })
   }
 

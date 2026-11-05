@@ -48,12 +48,10 @@ export async function POST(req: Request) {
     }
 
     // 2. Prepare and Insert the Individual Answers
-    // We only proceed if there are answers provided and the attempt was created
     if (answers && answers.length > 0 && attempt?.id) {
       const answersToInsert = answers.map((ans: any) => ({
         attempt_id: attempt.id,
         question_id: ans.question_id,
-        // Wrap the scalar string answer (e.g., "A") in a JSON object because your schema specifies jsonb
         user_answer: ans.user_answer ? { value: ans.user_answer } : null, 
         is_correct: ans.is_correct
       }))

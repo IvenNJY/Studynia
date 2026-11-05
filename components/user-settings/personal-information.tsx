@@ -25,6 +25,7 @@ export function PersonalInformation({ fullName: initialFullName, institutionName
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
+  const hasFullName = fullName.trim().length > 0
 
   useEffect(() => {
     const startEditing = () => setIsEditing(true)
@@ -34,7 +35,7 @@ export function PersonalInformation({ fullName: initialFullName, institutionName
 
   const saveInformation = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!isEditing) return
+    if (!isEditing || !hasFullName) return
 
     setIsSaving(true)
     const toastId = toast.loading("Saving personal information…")
@@ -141,7 +142,7 @@ export function PersonalInformation({ fullName: initialFullName, institutionName
 
           {isEditing && <div className="flex justify-end gap-2">
             <Button type="button" className="cursor-pointer" variant="outline" onClick={cancelEditing} disabled={isSaving}>Cancel</Button>
-            <Button type="submit" className="cursor-pointer" disabled={isSaving || isSendingReset}>
+            <Button type="submit" className="cursor-pointer" disabled={isSaving || isSendingReset || !hasFullName}>
               {isSaving ? "Saving…" : "Save Changes"}
             </Button>
           </div>}

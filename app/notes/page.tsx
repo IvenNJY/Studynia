@@ -37,7 +37,6 @@ function NotesContent() {
 
   useEffect(() => {
     const controller = new AbortController()
-    setLoading(true)
     fetch(`/api/notes?search=${encodeURIComponent(search)}`, { cache: "no-store", signal: controller.signal })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Failed to load notes")))
       .then(setNotes)
@@ -60,7 +59,6 @@ function NotesContent() {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b bg-background px-4">
           <SidebarTrigger className="-ml-1" />
-          <h2 className="text-sm font-semibold">Notes</h2>
         </header>
         <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
       <div>

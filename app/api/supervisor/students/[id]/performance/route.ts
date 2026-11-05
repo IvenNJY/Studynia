@@ -13,7 +13,8 @@ type Attempt = {
 }
 
 type Answer = {
-	assessment_questions: { question_text: string; topic: string | null; source_id: number | null } | null
+	user_answer: unknown
+	assessment_questions: { question_text: string; correct_answer: string | null; explanation: string | null; topic: string | null; source_id: number | null } | null
 	assessment_attempts: { assessment_id: string } | null
 }
 
@@ -100,12 +101,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			courseStats.set(courseId, stats)
 		}
 
-		const weakAreas = new Map<string, { area: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseNames: Set<string>; courseIds: Set<string>; quizzes: Set<string>; sources: Map<string, { sourceId: number | null; name: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseIds: Set<string> }> }>()
+		const weakAreas = new Map<string, { area: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseNames: Set<string>; courseIds: Set<string>; quizzes: Set<string>; incorrectAnswers: Array<{ question: string; userAnswer: unknown; correctAnswer: string | null; explanation: string | null; courseId: string | null }>; sources: Map<string, { sourceId: number | null; name: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseIds: Set<string> }> }>()
 		for (const answer of (answersResult.data ?? []) as unknown as Answer[]) {
 			const area = answer.assessment_questions?.topic || answer.assessment_questions?.question_text || "Uncategorised"
 			const assessment = answer.assessment_attempts?.assessment_id ? assessments.get(answer.assessment_attempts.assessment_id) : undefined
 			const courseName = assessment?.course_id ? courses.get(assessment.course_id)?.course_name : undefined
-			const current = weakAreas.get(area) ?? { area, incorrectCount: 0, incorrectCountsByCourse: new Map<string, number>(), courseNames: new Set<string>(), courseIds: new Set<string>(), quizzes: new Set<string>(), sources: new Map<string, { sourceId: number | null; name: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseIds: Set<string> }>() }
+			const current = weakAreas.get(area) ?? { area, incorrectCount: 0, incorrectCountsByCourse: new Map<string, number>(), courseNames: new Set<string>(), courseIds: new Set<string>(), quizzes: new Set<string>(), incorrectAnswers: [], sources: new Map<string, { sourceId: number | null; name: string; incorrectCount: number; incorrectCountsByCourse: Map<string, number>; courseIds: Set<string> }>() }
 			current.incorrectCount += 1
 			if (courseName && assessment?.course_id) {
 				current.courseNames.add(courseName)
@@ -113,6 +114,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 				current.incorrectCountsByCourse.set(assessment.course_id, (current.incorrectCountsByCourse.get(assessment.course_id) ?? 0) + 1)
 			}
 			if (assessment) {
+				current.incorrectAnswers.push({ question: answer.assessment_questions?.question_text || "Question unavailable", userAnswer: answer.user_answer, correctAnswer: answer.assessment_questions?.correct_answer || null, explanation: answer.assessment_questions?.explanation || null, courseId: assessment.course_id })
 				current.quizzes.add(assessment.title)
 				const sourceId = answer.assessment_questions?.source_id
 				const sourceName = sourceId === null || sourceId === undefined
@@ -134,7 +136,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 			student: { id: studentResult.data.id, name: studentResult.data.full_name || "Unnamed student", institutionName: studentResult.data.institution_name },
 			attemptHistory,
 			courseScores: Array.from(courseStats.entries()).map(([courseId, stats]) => ({ courseId, courseName: courses.get(courseId)?.course_name || "Unknown course", courseCode: courses.get(courseId)?.course_code || null, averageScore: Math.round(stats.total / stats.attempts), attempts: stats.attempts })),
-			weakAreas: Array.from(weakAreas.values()).map((area) => ({ area: area.area, incorrectCount: area.incorrectCount, incorrectCountsByCourse: Object.fromEntries(area.incorrectCountsByCourse), courses: Array.from(area.courseNames), courseIds: Array.from(area.courseIds), quizzes: Array.from(area.quizzes), sources: Array.from(area.sources.values()).map((source) => ({ sourceId: source.sourceId, name: source.name, incorrectCount: source.incorrectCount, incorrectCountsByCourse: Object.fromEntries(source.incorrectCountsByCourse), courseIds: Array.from(source.courseIds) })) })).sort((left, right) => right.incorrectCount - left.incorrectCount),
+			weakAreas: Array.from(weakAreas.values()).map((area) => ({ area: area.area, incorrectCount: area.incorrectCount, incorrectCountsByCourse: Object.fromEntries(area.incorrectCountsByCourse), courses: Array.from(area.courseNames), courseIds: Array.from(area.courseIds), quizzes: Array.from(area.quizzes), incorrectAnswers: area.incorrectAnswers, sources: Array.from(area.sources.values()).map((source) => ({ sourceId: source.sourceId, name: source.name, incorrectCount: source.incorrectCount, incorrectCountsByCourse: Object.fromEntries(source.incorrectCountsByCourse), courseIds: Array.from(source.courseIds) })) })).sort((left, right) => right.incorrectCount - left.incorrectCount),
 		})
 	} catch (error: unknown) {
 		console.error("Student performance error:", error)

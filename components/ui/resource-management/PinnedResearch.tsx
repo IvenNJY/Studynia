@@ -17,7 +17,7 @@ import {
 import { ExternalLink, Pencil, Pin, Plus, Search, Trash2 } from "lucide-react"
 
 type Research = {
-  id: string
+  id: string | number
   link: string | null
   display_name: string | null
   created_at: string | null

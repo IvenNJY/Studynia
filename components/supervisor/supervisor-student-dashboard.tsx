@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, BarChart3, BookOpen, Loader2, MessageCircle, Target } from "lucide-react"
+import { ArrowLeft, BarChart3, BookOpen, ChevronLeft, ChevronRight, Loader2, MessageCircle, Target } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +27,7 @@ export function SupervisorStudentDashboard({ studentId }: { studentId: string })
 	const [error, setError] = useState<string | null>(null)
 	const [selectedCourseId, setSelectedCourseId] = useState("all")
 	const [weakAreaSort, setWeakAreaSort] = useState<"incorrect" | "source">("incorrect")
+	const [weakAreaPage, setWeakAreaPage] = useState(0)
 	const [showChatDialog, setShowChatDialog] = useState(false)
 	const [selectedAttemptId, setSelectedAttemptId] = useState("")
 	const [chatError, setChatError] = useState("")
@@ -61,6 +62,22 @@ export function SupervisorStudentDashboard({ studentId }: { studentId: string })
 			: right.incorrectCount - left.incorrectCount)
 	}, [data?.weakAreas, selectedCourseId, weakAreaSort])
 	const filteredMaxWeakCount = Math.max(...filteredWeakAreas.map((area) => area.incorrectCount), 1)
+	const sourceChartData = useMemo(() => {
+		const counts = new Map<string, { name: string; count: number }>()
+		for (const area of filteredWeakAreas) {
+			for (const source of area.sources) {
+				const key = `${source.sourceId ?? "unknown"}-${source.name}`
+				const current = counts.get(key)
+				counts.set(key, { name: source.sourceId === null ? source.name : `${source.sourceId}. ${source.name}`, count: (current?.count ?? 0) + source.incorrectCount })
+			}
+		}
+		return [...counts.values()].sort((left, right) => right.count - left.count)
+	}, [filteredWeakAreas])
+	const sourceChartTotal = sourceChartData.reduce((sum, source) => sum + source.count, 0)
+	const weakAreasPerPage = 5
+	const weakAreaPageCount = Math.ceil(filteredWeakAreas.length / weakAreasPerPage)
+	const currentWeakAreaPage = Math.min(weakAreaPage, Math.max(weakAreaPageCount - 1, 0))
+	const visibleWeakAreas = filteredWeakAreas.slice(currentWeakAreaPage * weakAreasPerPage, (currentWeakAreaPage + 1) * weakAreasPerPage)
 
 	async function openAttemptChat() {
 		setChatError("")
@@ -201,7 +218,23 @@ export function SupervisorStudentDashboard({ studentId }: { studentId: string })
 		          </SelectContent>
 		        </Select>
 		      </CardHeader>
-		      <CardContent className="space-y-5">{filteredWeakAreas.length === 0 ? <p className="text-sm text-muted-foreground">No incorrect answers for this course.</p> : filteredWeakAreas.map((area) => <div key={area.area} className="space-y-3 rounded-lg border p-4">
+		      <CardContent className="space-y-5">{filteredWeakAreas.length === 0 ? <p className="text-sm text-muted-foreground">No incorrect answers for this course.</p> : <>
+		        {sourceChartData.length > 0 && <div className="flex items-center gap-4 rounded-lg border bg-muted/20 p-3">
+		          <div className="h-24 w-24 shrink-0 rounded-full" style={{ background: `conic-gradient(${sourceChartData.map((source, index) => {
+		            const start = sourceChartData.slice(0, index).reduce((sum, item) => sum + item.count, 0) / sourceChartTotal * 100
+		            const end = (sourceChartData.slice(0, index + 1).reduce((sum, item) => sum + item.count, 0) / sourceChartTotal) * 100
+		            return `${["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#9333ea", "#0891b2"][index % 6]} ${start}% ${end}%`
+		          }).join(", ")})` }} aria-label="Incorrect answers by source chapter" role="img" />
+		          <div className="min-w-0 space-y-1">
+		            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Incorrect by source</p>
+		            {sourceChartData.slice(0, 4).map((source, index) => <div key={source.name} className="flex items-center gap-2 text-xs">
+		              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#9333ea", "#0891b2"][index % 6] }} />
+		              <span className="truncate">{source.name}</span><span className="font-semibold">{source.count}</span>
+		            </div>)}
+		            {sourceChartData.length > 4 && <p className="text-xs text-muted-foreground">+{sourceChartData.length - 4} more chapters</p>}
+		          </div>
+		        </div>}
+		        {visibleWeakAreas.map((area) => <div key={area.area} className="space-y-3 rounded-lg border p-4">
 		          <div className="flex items-start justify-between gap-3">
 		            <div>
 		              <p className="font-medium">{area.area}</p>
@@ -215,7 +248,15 @@ export function SupervisorStudentDashboard({ studentId }: { studentId: string })
 		            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source chapters</p>
 		            <div className="space-y-1.5">{area.sources.length > 0 ? area.sources.map((source) => <div key={`${source.sourceId ?? "unknown" }-${source.name}`} className="flex items-center justify-between rounded bg-muted/50 px-2 py-1.5 text-xs"><span className="truncate">{source.sourceId === null ? source.name : `${source.sourceId}. ${source.name}`}</span><span className="font-semibold text-destructive">{source.incorrectCount} incorrect</span></div>) : <p className="text-xs text-muted-foreground">Source chapter unavailable</p>}</div>
 		          </div>{area.quizzes.length > 0 && <p className="text-xs text-muted-foreground">Quiz: {area.quizzes.join(", ")}</p>}
-		        </div>)}</CardContent>
+		        </div>)}
+		        {weakAreaPageCount > 1 && <div className="flex items-center justify-between border-t pt-4">
+		          <p className="text-xs text-muted-foreground">Page {currentWeakAreaPage + 1} of {weakAreaPageCount}</p>
+		          <div className="flex gap-2">
+		            <Button type="button" variant="outline" size="sm" onClick={() => setWeakAreaPage((page) => Math.max(page - 1, 0))} disabled={currentWeakAreaPage === 0} aria-label="Previous weak areas page"><ChevronLeft className="h-4 w-4" /></Button>
+		            <Button type="button" variant="outline" size="sm" onClick={() => setWeakAreaPage((page) => Math.min(page + 1, weakAreaPageCount - 1))} disabled={currentWeakAreaPage === weakAreaPageCount - 1} aria-label="Next weak areas page"><ChevronRight className="h-4 w-4" /></Button>
+		          </div>
+		        </div>}
+		      </>}</CardContent>
 		    </Card>
 		  </div>}
 		  <Dialog open={showChatDialog} onOpenChange={setShowChatDialog}>
