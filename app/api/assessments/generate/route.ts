@@ -17,7 +17,7 @@ type GenerateAssessmentRequest = {
 	title?: string
 }
 
-const WORKER_URL = (process.env.ASSESSMENT_WORKER_URL || "https://studynia-worker.onrender.com").replace(/\/+$/, "")
+const WORKER_URL = (process.env.ASSESSMENT_WORKER_URL || "Add your worker URL here").replace(/\/+$/, "")
 const MAX_QUESTIONS = 15
 const DEFAULT_QUESTIONS = 5
 const ALLOWED_FILE_EXTENSIONS = new Set(["pdf", "docx", "pptx"])
