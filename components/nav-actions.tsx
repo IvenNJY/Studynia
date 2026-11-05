@@ -66,6 +66,7 @@ const data = [
 
 export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit?: boolean }) {
   const [isOpen, setIsOpen] = React.useState(false)
+  const [isTagOpen, setIsTagOpen] = React.useState(false)
   const [showTrashDialog, setShowTrashDialog] = React.useState(false)
   const [isArchiving, setIsArchiving] = React.useState(false)
   const router = useRouter()
@@ -74,20 +75,28 @@ export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit
   const [tagCourseId, setTagCourseId] = React.useState("")
   const [tags, setTags] = React.useState<Array<{ id: string; name: string; course_id?: string | null }>>([])
   const [courses, setCourses] = React.useState<Array<{ id: string; course_name: string | null }>>([])
+
   React.useEffect(() => {
-    fetch(`/api/notes/${noteId}/metadata`).then((response) => response.ok ? response.json() : null).then((data: { favorite?: boolean; tags?: Array<{ id: string; name: string; course_id?: string | null }> } | null) => {
+    fetch(`/api/notes/${noteId}/metadata`).then((response) => response.ok ? response.json() : null).then(
+      (data: 
+        { favorite?: boolean;
+          tags?: Array<{ id: string; name: string; course_id?: string | null }>
+        } | null) => {
       if (data) { setFavorite(Boolean(data.favorite)); setTags(data.tags ?? []) }
     }).catch(() => undefined)
     fetch("/api/courses").then((response) => response.ok ? response.json() : []).then(setCourses).catch(() => undefined)
   }, [noteId])
+
   const toggleFavorite = async () => {
     const next = !favorite
-    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorite: next }) })
+    const response = await fetch(`/api/notes/${noteId}/metadata`, 
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorite: next }) })
     if (response.ok) setFavorite(next)
   }
   const saveTag = async () => {
     if (!tag.trim()) return
-    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag, courseId: tagCourseId || null }) })
+    const response = await fetch(`/api/notes/${noteId}/metadata`, 
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag, courseId: tagCourseId || null }) })
     if (response.ok) {
       const data = await fetch(`/api/notes/${noteId}/metadata`).then((response) => response.json())
       setTags(data.tags ?? [])
@@ -96,12 +105,16 @@ export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit
       setTagCourseId("")
     }
   }
+
   const updateTag = async (tagId: string, name: string, courseId: string | null) => {
-    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, tag: name, courseId }) })
+    const response = await fetch(`/api/notes/${noteId}/metadata`, 
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, tag: name, courseId }) })
     if (response.ok) setTags((current) => current.map((entry) => entry.id === tagId ? { ...entry, name, course_id: courseId } : entry))
   }
+
   const removeTag = async (tagId: string) => {
-    const response = await fetch(`/api/notes/${noteId}/metadata`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId }) })
+    const response = await fetch(`/api/notes/${noteId}/metadata`, 
+      { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId }) })
     if (response.ok) setTags((current) => current.filter((entry) => entry.id !== tagId))
   }
 
@@ -139,9 +152,6 @@ export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <div className="hidden font-medium text-muted-foreground md:inline-block">
-        Edit Oct 08
-      </div>
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void toggleFavorite()} aria-label={favorite ? "Remove favorite" : "Add favorite"}>
         <Star className={favorite ? "fill-yellow-400 text-yellow-500" : ""} />
       </Button>
@@ -182,7 +192,7 @@ export function NavActions({ noteId, canEdit = true }: { noteId: string; canEdit
           </Sidebar>
         </PopoverContent>
       </Popover>
-      {canEdit && <Popover>
+      {canEdit && <Popover open={isTagOpen} onOpenChange={setIsTagOpen}>
         <PopoverTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Tag note">#</Button>} />
         <PopoverContent className="w-80 space-y-3">
           <p className="text-sm font-medium">Manage tags</p>

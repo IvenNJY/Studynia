@@ -5,7 +5,6 @@ import Link from "next/link"
 import {
   BookOpen,
   ChevronRight,
-  Download,
   ExternalLink,
   FileText,
   FolderKanban,
@@ -21,7 +20,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -349,19 +347,15 @@ function CourseHeader({
 
 function CourseSidebar({
   course,
-  modulesCount,
   totalItems,
   progress,
-  publishedModules,
-  sidebarItems,
+  linkedNotes,
   instructorName,
 }: {
   course: CourseDetail | null
-  modulesCount: number
   totalItems: number
   progress: number
-  publishedModules: number
-  sidebarItems: { moduleName: string; item: ModuleItem }[]
+  linkedNotes: LinkedNote[]
   instructorName: string
 }) {
   return (
@@ -389,57 +383,26 @@ function CourseSidebar({
               <Progress value={progress} className="h-2 bg-white/10" indicatorclass="bg-cyan-300" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-3xl font-semibold">{modulesCount || 0}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Modules</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-3xl font-semibold">{publishedModules}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sky-100/70">Published</p>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="border-muted/60 bg-background/90 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold">Course Resources</CardTitle>
+          <CardTitle className="text-lg font-semibold">Linked Notes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {sidebarItems.length > 0 ? (
-            sidebarItems.map(({ moduleName, item }) => {
-              const link = getItemLink(item)
-
-              return (
-                <div key={`${item.id}-${moduleName}`} className="flex items-start gap-3 rounded-2xl border bg-muted/20 p-3">
-                  <div className="mt-0.5 rounded-lg bg-background p-2">
-                    <FileText className="h-4 w-4 text-sky-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{moduleName}</p>
-                  </div>
-                  {link ? (
-                    <a href={link} target="_blank" rel="noreferrer" className="pt-1 text-muted-foreground hover:text-foreground">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  ) : null}
-                </div>
-              )
-            })
-          ) : (
-            <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No resources found yet.
-            </div>
+          {linkedNotes.length > 0 ? linkedNotes.slice(0, 4).map((note) => (
+            <Link key={note.id} href={`/notes/${note.id}`} className="block rounded-2xl border bg-muted/20 p-3 transition-colors hover:bg-muted/40">
+              <p className="truncate text-sm font-medium text-foreground">{note.title || "Untitled note"}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{getNotePreview(note.content) || "Open this note to view its contents."}</p>
+            </Link>
+          )) : (
+            <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">No linked notes yet.</div>
           )}
-
-          <Separator />
-
-          <Link href="/resources" className={cn(buttonVariants({ size: "default" }), "w-full gap-2")}>
-            Explore All Materials
-            <Download className="h-4 w-4" />
+          <Link href="/notes" className={cn(buttonVariants({ size: "default" }), "w-full gap-2")}>
+            View All Notes
+            <ChevronRight className="h-4 w-4" />
           </Link>
         </CardContent>
       </Card>
@@ -573,7 +536,13 @@ export function FolderView({ courseId }: { courseId: string }) {
     if (!course || !courseName.trim()) return
     setIsSavingCourse(true)
     try {
-      const response = await fetch(`/api/courses/${course.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ course_name: courseName, course_code: courseCode, description: courseDescription }) })
+      const response = await fetch(`/api/courses/${course.id}`, { method: "PATCH", headers: 
+        { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ 
+          course_name: courseName, 
+          course_code: courseCode, 
+          description: courseDescription }) })
+
       const payload = await response.json() as CourseDetail & { error?: string }
       if (!response.ok) throw new Error(payload.error || "Could not update course")
       setCourse((current) => current ? { ...current, ...payload } : current)
@@ -764,21 +733,11 @@ export function FolderView({ courseId }: { courseId: string }) {
   // Derived State
   const stats = useMemo(() => {
     const totalItems = modules.reduce((count, module) => count + module.items.length, 0)
-    const publishedModules = modules.filter((module) => module.published).length
-    
     // Progress is now calculated by items checked off vs total items
     const progress = totalItems > 0 ? Math.round((completedItems.size / totalItems) * 100) : 0
     
-    return { totalItems, publishedModules, progress }
+    return { totalItems, progress }
   }, [modules, completedItems])
-
-  const sidebarItems = useMemo(
-    () =>
-      modules
-        .flatMap((module) => module.items.map((item) => ({ moduleName: module.name, item })))
-        .slice(0, 4),
-    [modules]
-  )
 
   const instructorName = course?.instructor || "Lecturer"
 
@@ -840,16 +799,13 @@ export function FolderView({ courseId }: { courseId: string }) {
                     <p className="text-sm text-muted-foreground">Drag and drop materials to organize, or check them off as you go.</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAddMaterial(true)}>
+                    {!course?.lms_external_id?.trim() && <Button variant="outline" size="sm" onClick={() => setShowAddMaterial(true)}>
                       Add material
-                    </Button>
-                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
-                      {stats.progress}% Complete
-                    </Badge>
+                    </Button>}
                   </div>
                 </div>
 
-                <Dialog open={showAddMaterial} onOpenChange={(open) => { if (!isAddingMaterial) setShowAddMaterial(open) }}>
+                {!course?.lms_external_id?.trim() && <Dialog open={showAddMaterial} onOpenChange={(open) => { if (!isAddingMaterial) setShowAddMaterial(open) }}>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Add material</DialogTitle>
@@ -867,7 +823,7 @@ export function FolderView({ courseId }: { courseId: string }) {
                       </Button>
                     </DialogFooter>
                   </DialogContent>
-                </Dialog>
+                </Dialog>}
 
                 <Dialog open={showEditCourse} onOpenChange={(open) => !isSavingCourse && setShowEditCourse(open)}>
                   <DialogContent>
@@ -961,24 +917,24 @@ export function FolderView({ courseId }: { courseId: string }) {
                       </CardContent>
                     </Card>
                   )}
-                  <Card className="border-dashed border-muted/60 bg-transparent shadow-none">
+                  <Link href="/add-note" className="block h-full">
+                  <Card className="h-full border-dashed border-muted/60 bg-transparent shadow-none transition-colors hover:bg-muted/30">
                     <CardContent className="flex h-full min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
                       <GraduationCap className="mb-3 h-10 w-10" />
                       <p className="font-medium text-foreground">Start a New Note</p>
                       <p className="mt-1 text-sm">Capture ideas from this course folder.</p>
                     </CardContent>
                   </Card>
+                  </Link>
                 </div>
               </section>
             </div>
 
             <CourseSidebar
               course={course}
-              modulesCount={modules.length}
               totalItems={stats.totalItems}
               progress={stats.progress}
-              publishedModules={stats.publishedModules}
-              sidebarItems={sidebarItems}
+              linkedNotes={linkedNotes}
               instructorName={instructorName}
             />
           </div>
